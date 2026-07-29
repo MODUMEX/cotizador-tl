@@ -84,6 +84,7 @@ public class PDistribuidor : BaseModel
     [Column("region")]        public string Region { get; set; } = "México";  // 'México' | 'LATAM' | 'Costa Rica'
     [Column("descuento_pct")] public decimal DescuentoPct { get; set; }
     [Column("activo")]        public bool Activo { get; set; } = true;
+    [Column("logo")]          public string? Logo { get; set; }   // data URI (data:image/png;base64,...) para el PDF
 }
 
 [Table("cotizacion")]

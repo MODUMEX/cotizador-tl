@@ -732,6 +732,7 @@ else
         var dto = new
         {
             folio = cot.Folio, vigencia = vigencia?.ToString("dd/MM/yyyy") ?? "", entrega = entrega,
+            logoDistribuidor = DistribActual?.Logo,
             razonSocial = cot.RazonSocial, proyecto = cot.Proyecto, titulo = cot.Titulo, cliente = cot.Cliente,
             atencionA = cot.AtencionA, telefono = cot.Telefono, ciudad = cot.Ciudad, cotizadoPor = cot.CotizadoPor,
             comentarios = cot.Comentarios, descuentoPct = cot.DescuentoPct.ToString("0.#"),

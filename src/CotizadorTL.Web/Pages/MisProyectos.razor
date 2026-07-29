@@ -233,6 +233,7 @@ else
             {
                 folio = c.Folio,
                 vigencia = c.Vigencia?.ToString("dd/MM/yyyy") ?? "", entrega = c.Entrega,
+                logoDistribuidor = Catalogo.Distribuidores.FirstOrDefault(d => d.DistribuidorId == c.DistribuidorId)?.Logo,
                 razonSocial = c.RazonSocial, proyecto = c.Proyecto, titulo = c.Titulo,
                 cliente = c.Cliente, atencionA = c.AtencionA, telefono = c.Telefono,
                 ciudad = c.Ciudad, cotizadoPor = c.CotizadoPor, comentarios = c.Comentarios,

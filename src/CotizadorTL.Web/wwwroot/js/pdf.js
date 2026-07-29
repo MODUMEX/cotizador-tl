@@ -42,8 +42,20 @@
 
       // ---------- Encabezado ----------
       // Logo THIN LAMINATES (izquierda)
-      let tlH = 50;
-      if (L.tl) { const w = 118; tlH = w * L.tlH / L.tlW; doc.addImage(L.tl, "PNG", M, y, w, tlH); }
+      let tlH = 50, tlW = 118;
+      if (L.tl) { tlH = tlW * L.tlH / L.tlW; doc.addImage(L.tl, "PNG", M, y, tlW, tlH); }
+
+      // Logo del distribuidor (si tiene), a la par del de Thin Laminates
+      if (d.logoDistribuidor) {
+        try {
+          const p = doc.getImageProperties(d.logoDistribuidor);
+          const hMax = tlH, wMax = 120;
+          let lw = p.width * hMax / p.height, lh = hMax;
+          if (lw > wMax) { lw = wMax; lh = p.height * wMax / p.width; }
+          const lx = M + tlW + 18, ly = y + (tlH - lh) / 2;
+          doc.addImage(d.logoDistribuidor, p.fileType || "PNG", lx, ly, lw, lh);
+        } catch (e) { }
+      }
       // Logo GRUPO MODUMEX (derecha)
       let mxH = 44;
       if (L.modumex) { const w = 112; mxH = w * L.mxH / L.mxW; doc.addImage(L.modumex, "JPEG", W - M - w, y, w, mxH); }

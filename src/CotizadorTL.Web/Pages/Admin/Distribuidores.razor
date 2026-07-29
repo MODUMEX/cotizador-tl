@@ -76,6 +76,18 @@ else
             <label>Ubicación / ciudad<input @bind="edit.Ubicacion" /></label>
             <label>Descuento por defecto %<input type="number" step="0.01" @bind="edit.DescuentoPct" /></label>
         </div>
+        <div style="margin-top:.6rem">
+            <label class="muted small" style="display:block;margin-bottom:.3rem"><b>Logo de la empresa</b> (PNG o JPG · sale en el PDF, a la par del de Thin Laminates)</label>
+            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+                @if (!string.IsNullOrEmpty(edit.Logo))
+                {
+                    <img src="@edit.Logo" alt="logo" style="height:38px;max-width:150px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#fff;padding:2px" />
+                    <button type="button" class="btn-mini pdf" @onclick="() => { edit.Logo = null; logoMsg = null; }">Quitar logo</button>
+                }
+                <InputFile OnChange="SubirLogo" accept="image/png,image/jpeg" />
+            </div>
+            @if (logoMsg is not null) { <span class="muted small">@logoMsg</span> }
+        </div>
         @if (edit.DistribuidorId != 0)
         {
             <p class="muted small" style="margin:.6rem 0 .2rem"><b>Descuentos por familia</b> (si quedan en 0, se usa el descuento por defecto):</p>
@@ -98,11 +110,16 @@ else
         <h2>Empresas</h2>
         <div class="tabla-wrap">
             <table class="proyectos">
-                <thead><tr><th>Nombre</th><th>País</th><th>Región</th><th>Ubicación</th><th class="num">Desc. %</th><th></th></tr></thead>
+                <thead><tr><th>Logo</th><th>Nombre</th><th>País</th><th>Región</th><th>Ubicación</th><th class="num">Desc. %</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var d in Catalogo.Distribuidores)
                     {
                         <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(d.Logo))
+                                { <img src="@d.Logo" alt="logo" style="height:28px;max-width:90px;object-fit:contain" /> }
+                                else { <span class="muted small">—</span> }
+                            </td>
                             <td><b>@d.Nombre</b></td><td>@d.Pais</td>
                             <td><span class="estado">@d.Region</span></td><td>@d.Ubicacion</td>
                             <td class="num">@d.DescuentoPct.ToString("0.#")</td>
@@ -115,7 +132,7 @@ else
                         </tr>
                     }
                     @if (Catalogo.Distribuidores.Count == 0)
-                    { <tr><td colspan="6" class="muted center">Sin empresas.</td></tr> }
+                    { <tr><td colspan="7" class="muted center">Sin empresas.</td></tr> }
                 </tbody>
             </table>
         </div>
@@ -124,7 +141,7 @@ else
 
 @code {
     private bool cargando = true, guardando;
-    private string? msg, msgU; private bool ok, okU;
+    private string? msg, msgU, logoMsg; private bool ok, okU;
     private PDistribuidor edit = new();
     private readonly List<CuentaVM> cuentas = new();
 
@@ -177,14 +194,32 @@ else
         catch (Exception ex) { okU = false; msgU = "No se pudo desactivar: " + ex.Message; }
     }
 
-    private void NuevoForm() { edit = new PDistribuidor(); msg = null; }
+    private void NuevoForm() { edit = new PDistribuidor(); msg = null; logoMsg = null; }
+
+    private async Task SubirLogo(InputFileChangeEventArgs e)
+    {
+        logoMsg = null;
+        var file = e.File;
+        if (file is null) return;
+        if (file.Size > 800_000) { logoMsg = "El logo debe pesar menos de 800 KB. Reduce la imagen e inténtalo de nuevo."; return; }
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(1_000_000).CopyToAsync(ms);
+            var mime = file.ContentType == "image/jpeg" ? "image/jpeg" : "image/png";
+            edit.Logo = $"data:{mime};base64,{Convert.ToBase64String(ms.ToArray())}";
+            logoMsg = $"Cargado: {file.Name}. Recuerda pulsar Guardar.";
+        }
+        catch (Exception ex) { logoMsg = "No se pudo leer la imagen: " + ex.Message; }
+    }
 
     private decimal descCub, descLock, descBanca;
 
     private async Task Editar(PDistribuidor d)
     {
-        edit = new PDistribuidor { DistribuidorId = d.DistribuidorId, Nombre = d.Nombre, Email = d.Email, Telefono = d.Telefono, Ubicacion = d.Ubicacion, Pais = d.Pais, Region = d.Region, DescuentoPct = d.DescuentoPct, Activo = d.Activo };
+        edit = new PDistribuidor { DistribuidorId = d.DistribuidorId, Nombre = d.Nombre, Email = d.Email, Telefono = d.Telefono, Ubicacion = d.Ubicacion, Pais = d.Pais, Region = d.Region, DescuentoPct = d.DescuentoPct, Activo = d.Activo, Logo = d.Logo };
         descCub = descLock = descBanca = 0;
+        logoMsg = null;
         var rows = (await Supa.From<PDistribuidorDescuento>().Where(x => x.DistribuidorId == d.DistribuidorId).Get()).Models;
         foreach (var r in rows)
         {
