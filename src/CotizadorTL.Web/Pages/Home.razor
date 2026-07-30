@@ -578,6 +578,10 @@ else
     {
         var p = ProdDe(l); if (p is null) return;
         var sb = new System.Text.StringBuilder(p.Descripcion);
+        // Cubierta de EXTERIOR: la plantilla trae la leyenda de interior (garantía 25 años).
+        // El exterior lleva 10 años de garantía y debe decir (EXTERIOR).
+        if (EsFamilia(l, "CUBIERTAS") && l.Exterior)
+            sb.Replace("25 AÑOS", "10 AÑOS").Replace("(INTERIOR)", "(EXTERIOR)");
         if (p.RequiereMedidas && (l.LargoCm > 0 || l.AnchoCm > 0))
         {
             string medida;
