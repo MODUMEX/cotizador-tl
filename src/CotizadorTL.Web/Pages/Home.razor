@@ -192,7 +192,7 @@ else
                                             <label class="chk">
                                                 <input type="checkbox" checked="@sel"
                                                        @onchange="e => ToggleExtra(l, ex.ProductoId, (bool)e.Value!)" />
-                                                @ex.Nombre (@Money(PrecioExtra(ex, TierDe(prod))))
+                                                @ex.Nombre (@Money(PrecioExtra(ex, TierDe(prod)) * Factor))
                                             </label>
                                             @if (sel)
                                             {
@@ -420,11 +420,18 @@ else
 
     private string TierDe(Producto p) => (p.CodigoSap.StartsWith("L-") || p.CodigoSap.Contains("SMART")) ? "SMART" : "PRO";
 
+    // Precio base del extra en MXN (base común del catálogo).
+    // Los extras cotizados en USD (cerraduras electrónicas Gatner) se convierten a base MXN
+    // con el tipo de cambio; luego el Factor los lleva a la moneda del distribuidor:
+    // México → MXN, Costa Rica → CRC, LATAM → vuelve a USD.
     private decimal PrecioExtra(Producto ex, string tier)
     {
-        if (ex.Precios.TryGetValue(tier, out var pt)) return pt;
-        if (ex.Precios.TryGetValue("UNICO", out var pu)) return pu;
-        return ex.Precios.Values.FirstOrDefault();
+        decimal precio;
+        if (ex.Precios.TryGetValue(tier, out var pt)) precio = pt;
+        else if (ex.Precios.TryGetValue("UNICO", out var pu)) precio = pu;
+        else precio = ex.Precios.Values.FirstOrDefault();
+        if (ex.Moneda == "USD") precio *= Divisor;
+        return precio;
     }
 
     // ---------- grupo / precio ----------

@@ -102,6 +102,9 @@ EXTRAS=[
 ]
 for i,(c,n,p) in enumerate(EXTRAS, start=200):
     add(c,"LOCKERS",n,{"UNICO":p},DESC.get(c,n),es_extra=True,orden=i)
+# Las cerraduras electrónicas Gatner se cotizan en USD (el resto del catálogo está en MXN).
+for _pr in PRODUCTOS:
+    if _pr["codigo_sap"] in ("C-GL7P","G-921727"): _pr["moneda"]="USD"
 # Fillers (PRO / SMART por rango de ancho)
 FILLERS=[("FILLER-08-10","Filler 8-10 cm",531.3840,464.9610),("FILLER-11-15","Filler 11-15 cm",797.0760,697.4415),
  ("FILLER-16-20","Filler 16-20 cm",1062.7680,929.9220),("FILLER-21-25","Filler 21-25 cm",1328.4601,1162.4026),
