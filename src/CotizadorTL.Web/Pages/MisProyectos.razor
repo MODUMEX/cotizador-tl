@@ -276,6 +276,10 @@ else
                 cliente = c.Cliente, ciudad = c.Ciudad, atencion = c.AtencionA,
                 distribuidor = NombreDist(c.DistribuidorId), proyecto = c.Proyecto,
                 fabricacion = c.Fabricacion, moneda = c.Moneda,
+                subtotal = (double)c.Subtotal, descuentoMonto = (double)c.DescuentoMonto,
+                subtotalDesc = (double)c.SubtotalDesc, gastosIndirectos = (double)c.GastosIndirectos,
+                gastosEnvio = (double)c.GastosEnvio, ivaPct = (double)c.IvaPct,
+                ivaMonto = (double)c.IvaMonto, granTotal = (double)c.GranTotal,
             };
             await JS.InvokeVoidAsync("cotizadorExcel.generar", info, rows);
         }

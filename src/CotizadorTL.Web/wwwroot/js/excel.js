@@ -109,12 +109,39 @@
         r++;
       });
 
-      // ---- Totales ----
+      // ---- Totales (cantidad) ----
       ws.mergeCells(r, 1, r, 4);
       const tot = ws.getCell(r, 1); tot.value = "TOTALES"; totalCell(tot);
       for (let c = 2; c <= 4; c++) totalCell(ws.getCell(r, c));
       const tc = ws.getCell(r, 5); totalCell(tc, totalCant); tc.numFmt = "#,##0.00";
       for (let c = 6; c <= 10; c++) totalCell(ws.getCell(r, c));
+      r += 2;
+
+      // ---- Resumen de importes (incluye el MONTO del descuento) ----
+      const simbolo = info.moneda === "CRC" ? "₡" : "$";
+      const fmt = '"' + simbolo + '"#,##0.00';
+      const resumen = (label, valor, opts) => {
+        opts = opts || {};
+        ws.mergeCells(r, 6, r, 8);
+        const lc = ws.getCell(r, 6);
+        lc.value = label; lc.alignment = { horizontal: "right", vertical: "middle" };
+        lc.font = { bold: !!opts.bold, size: 10, color: { argb: opts.fill ? "FFFFFFFF" : TXT } };
+        ws.mergeCells(r, 9, r, 10);
+        const vc = ws.getCell(r, 9);
+        vc.value = Number(valor || 0); vc.numFmt = fmt;
+        vc.alignment = { horizontal: "right", vertical: "middle" };
+        vc.font = { bold: !!opts.bold, size: 10, color: { argb: opts.fill ? "FFFFFFFF" : (opts.rojo ? "FFB03030" : TXT) } };
+        if (opts.fill) for (let c = 6; c <= 10; c++) ws.getCell(r, c).fill = solid(VERDE);
+        for (let c = 6; c <= 10; c++) ws.getCell(r, c).border = BORDER;
+        r++;
+      };
+      resumen("Subtotal público", info.subtotal);
+      resumen("Descuento", info.descuentoMonto, { rojo: true });
+      resumen("Subtotal con descuento", info.subtotalDesc);
+      if (Number(info.gastosIndirectos) > 0) resumen("Gastos indirectos", info.gastosIndirectos);
+      if (Number(info.gastosEnvio) > 0) resumen("Gastos de envío", info.gastosEnvio);
+      resumen("IVA " + (info.ivaPct != null ? info.ivaPct : 0) + "%", info.ivaMonto);
+      resumen("GRAN TOTAL", info.granTotal, { bold: true, fill: true });
 
       // ---- Descargar ----
       const buf = await wb.xlsx.writeBuffer();
