@@ -17,7 +17,7 @@ else if (cargando)
 else
 {
     <h1>Ventas <span class="muted" style="font-size:1rem">· CRM</span></h1>
-    <p class="lead">Panel de ventas: lo cotizado, lo que se ganó y lo que no, con seguimiento por cotización.</p>
+    <p class="lead">Panel de ventas: lo cotizado (enviadas + aprobadas + rechazadas, <b>sin borradores</b>), lo que se ganó y lo que no, con seguimiento por cotización.</p>
 
     <section class="card">
         <div class="filtros">
@@ -64,15 +64,15 @@ else
     <div class="paneles-fab">
         @foreach (var pan in Paneles(f))
         {
-            var s2 = pan.Datos;
+            var s2 = SinBorrador(pan.Datos);
             <section class="card">
-                <h2 class="sub">@pan.Titulo <span class="muted" style="font-size:.85rem">· @s2.Count cotiz.</span></h2>
+                <h2 class="sub">@pan.Titulo <span class="muted" style="font-size:.85rem">· @s2.Count cotiz. (sin borradores)</span></h2>
 
                 <div class="kpis">
                     <div class="kpi"><span class="kpi-lbl">Cotizado</span><span class="kpi-val">@M(s2.Sum(c => c.GranTotal))</span><span class="kpi-sub">@s2.Count cotizaciones</span></div>
                     <div class="kpi verde"><span class="kpi-lbl">Ganadas</span><span class="kpi-val">@M(MontoEstado(s2, "aceptada"))</span><span class="kpi-sub">@CuentaEstado(s2, "aceptada") aprobadas</span></div>
                     <div class="kpi rojo"><span class="kpi-lbl">Perdidas</span><span class="kpi-val">@M(MontoEstado(s2, "rechazada"))</span><span class="kpi-sub">@CuentaEstado(s2, "rechazada") rechazadas</span></div>
-                    <div class="kpi lima"><span class="kpi-lbl">En proceso</span><span class="kpi-val">@M(MontoEstado(s2, "borrador") + MontoEstado(s2, "enviada"))</span><span class="kpi-sub">@(CuentaEstado(s2, "borrador") + CuentaEstado(s2, "enviada")) abiertas</span></div>
+                    <div class="kpi lima"><span class="kpi-lbl">En proceso</span><span class="kpi-val">@M(MontoEstado(s2, "enviada"))</span><span class="kpi-sub">@CuentaEstado(s2, "enviada") enviadas</span></div>
                     <div class="kpi"><span class="kpi-lbl">Tasa de cierre</span><span class="kpi-val">@TasaCierre(s2).ToString("0.#")%</span><span class="kpi-sub">gan ÷ (gan+perd)</span></div>
                 </div>
 
@@ -235,6 +235,10 @@ else
     private static string EstadoLabel(string? code) => (code ?? "borrador") switch
     { "enviada" => "Enviada", "aceptada" => "Aprobada", "rechazada" => "Rechazada", _ => "Borrador" };
 
+    // El dashboard NO cuenta borradores: "Cotizado" = enviadas + aprobadas + rechazadas.
+    private static string EstadoDe(PCotizacion c) => string.IsNullOrEmpty(c.Estado) ? "borrador" : c.Estado;
+    private static List<PCotizacion> SinBorrador(List<PCotizacion> f) => f.Where(c => EstadoDe(c) != "borrador").ToList();
+
     // ---- dinero según moneda ----
     private string Sym => monedaSel == "CRC" ? "₡" : "$";
     private string M(decimal v) => Sym + v.ToString("#,##0.00");
@@ -253,7 +257,6 @@ else
     private record Segmento(string Label, string Color, decimal Monto, int Cuenta);
     private List<Segmento> PorEstado(List<PCotizacion> f) => new()
     {
-        new("Borrador",  "#bfbfbf", MontoEstado(f, "borrador"),  CuentaEstado(f, "borrador")),
         new("Enviada",   "#a6ce29", MontoEstado(f, "enviada"),   CuentaEstado(f, "enviada")),
         new("Aprobada",  "#6f9d18", MontoEstado(f, "aceptada"),  CuentaEstado(f, "aceptada")),
         new("Rechazada", "#c0392b", MontoEstado(f, "rechazada"), CuentaEstado(f, "rechazada")),
