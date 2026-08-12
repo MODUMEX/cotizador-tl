@@ -198,10 +198,14 @@
       const cajaEstilo = { font: "Roboto", fontSize: 8, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 };
       const cajaHead = { fillColor: VERDE, textColor: [255, 255, 255], halign: "center", fontStyle: "bold" };
 
+      // Las cajas (comentarios / datos bancarios) van a lo ancho DEBAJO de ambas columnas
+      // (totales a la derecha y condiciones a la izquierda), para no traslaparse con el IVA / Gran total.
+      let yCajas = Math.max(fy, doc.lastAutoTable.finalY) + 10;
+
       // ---------- Comentarios (izquierda) ----------
       if (d.comentarios && String(d.comentarios).trim()) {
         doc.autoTable({
-          startY: doc.lastAutoTable.finalY + 10,
+          startY: yCajas,
           margin: { left: M },
           tableWidth: 320,
           head: [["COMENTARIOS O INSTRUCCIONES ESPECIALES"]],
@@ -209,13 +213,14 @@
           styles: cajaEstilo,
           headStyles: cajaHead,
         });
+        yCajas = doc.lastAutoTable.finalY + 10;
       }
 
       // ---------- Datos bancarios (izquierda, con verde de marca) ----------
       if (d.datosBancarios && String(d.datosBancarios).trim()) {
         const filasBanco = String(d.datosBancarios).split(/\r?\n/).map((x) => x.trim()).filter((x) => x).map((x) => [x]);
         doc.autoTable({
-          startY: doc.lastAutoTable.finalY + 10,
+          startY: yCajas,
           margin: { left: M },
           tableWidth: 320,
           head: [["DATOS BANCARIOS"]],
@@ -223,6 +228,7 @@
           styles: cajaEstilo,
           headStyles: cajaHead,
         });
+        yCajas = doc.lastAutoTable.finalY + 10;
       }
 
       // ---------- Banner verde ----------
