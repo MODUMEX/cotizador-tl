@@ -7,11 +7,11 @@
     <title>Cotizador Thin Laminates</title>
     <base href="/" />
     <link rel="preload" id="webassembly" />
-    <link rel="stylesheet" href="css/app.css?v=79" />
+    <link rel="stylesheet" href="css/app.css?v=80" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link href="CotizadorTL.Web.styles.css?v=79" rel="stylesheet" />
+    <link href="CotizadorTL.Web.styles.css?v=80" rel="stylesheet" />
     <script type="importmap"></script>
-    <script>window.__APP_VER = "79";</script>
+    <script>window.__APP_VER = "80";</script>
 </head>
 
 <body>
@@ -28,15 +28,44 @@
         <a href="." class="reload">Recargar</a>
         <span class="dismiss">🗙</span>
     </div>
-    <script src="lib/jspdf/jspdf.umd.min.js?v=79"></script>
-    <script src="lib/jspdf/jspdf.plugin.autotable.min.js?v=79"></script>
-    <script src="js/logos.js?v=79"></script>
-    <script src="js/fonts.js?v=79"></script>
-    <script src="js/fns.js?v=79"></script>
-    <script src="js/pdf.js?v=79"></script>
-    <script src="lib/exceljs/exceljs.min.js?v=79"></script>
-    <script src="js/excel.js?v=79"></script>
-    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script src="lib/jspdf/jspdf.umd.min.js?v=80"></script>
+    <script src="lib/jspdf/jspdf.plugin.autotable.min.js?v=80"></script>
+    <script src="js/logos.js?v=80"></script>
+    <script src="js/fonts.js?v=80"></script>
+    <script src="js/fns.js?v=80"></script>
+    <script src="js/pdf.js?v=80"></script>
+    <script src="lib/exceljs/exceljs.min.js?v=80"></script>
+    <script src="js/excel.js?v=80"></script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js" autostart="false"></script>
+    <script>
+      // Arranque con REINTENTOS. GitHub Pages (CDN) a veces devuelve un 503 pasajero en algún
+      // .wasm (más común detrás de proxy/antivirus corporativo); como Blazor valida integridad,
+      // un solo 503 mataba el arranque con "error inesperado". Ahora se reintenta con backoff
+      // y descarga forzada, igual que una ventana de incógnito.
+      (function () {
+        function cargarConReintento(type, name, defaultUri, integrity) {
+          if (type === "dotnetjs") return undefined; // lo carga Blazor por <script>, no tocar
+          return (async function () {
+            var ultimoError;
+            for (var i = 0; i < 5; i++) {
+              try {
+                var resp = await fetch(defaultUri, {
+                  cache: i === 0 ? "default" : "reload",
+                  integrity: integrity || undefined,
+                });
+                if (resp.ok) return resp;
+                ultimoError = new Error("HTTP " + resp.status + " en " + name);
+              } catch (e) { ultimoError = e; }
+              await new Promise(function (r) { setTimeout(r, 500 * (i + 1)); });
+            }
+            throw ultimoError;
+          })();
+        }
+        Blazor.start({ loadBootResource: cargarConReintento }).catch(function (e) {
+          console.error("Blazor.start falló:", e);
+        });
+      })();
+    </script>
 
     <!-- Auto-recuperación: si tras un deploy el navegador tiene el index.html viejo en caché, el WASM no arranca
          (se queda el spinner o sale el error). Recarga UNA vez saltándose la caché; con guarda para no ciclar. -->
