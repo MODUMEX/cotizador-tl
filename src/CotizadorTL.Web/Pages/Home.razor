@@ -539,12 +539,16 @@ else
             cot.IvaPct = IvaDeMoneda(monedaSel);   // IVA default según la moneda (editable)
             fabricacion = RegionActual == "México" ? "México" : "Costa Rica"; // default: colores según fabricación
             if (string.IsNullOrWhiteSpace(cot.RazonSocial)) cot.RazonSocial = d.Nombre;
-            // Aplica el descuento por familia a cada renglón; y el cambio de región invalida colores
+            // Aplica el descuento por familia a cada renglón; el cambio de región solo invalida el
+            // color si ya NO existe para la región/ámbito actual (no borres selecciones válidas), y
+            // se regenera la descripción para que quede sincronizada con el color (columna del PDF).
             foreach (var l in lineas)
             {
-                l.ColorNombre = ""; l.ColorInterior = "";
+                if (!string.IsNullOrEmpty(l.ColorNombre) && !ColoresDe(l).Any(c => c.Nombre == l.ColorNombre)) l.ColorNombre = "";
+                if (!string.IsNullOrEmpty(l.ColorInterior) && !ColoresInterior().Any(c => c.Nombre == l.ColorInterior)) l.ColorInterior = "";
                 var p = ProdDe(l);
                 if (p is not null && p.AplicaDescuento) l.DescuentoPct = Catalogo.DescuentoFamilia(distribuidorId, l.FamiliaCodigo);
+                RegenerarDescripcion(l);
             }
         }
         StateHasChanged();
