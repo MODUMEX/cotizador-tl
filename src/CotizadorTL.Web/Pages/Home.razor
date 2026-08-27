@@ -653,25 +653,9 @@ else
                 return;
             }
 
-            string folio;
-            if (!eraEdicion)
-            {
-                // Toma el siguiente consecutivo vía función de servidor (atómico, sin chocar con RLS)
-                var rpc = await Supa.Rpc("siguiente_folio", new Dictionary<string, object?>());
-                var raw = (rpc?.Content ?? "").Trim().Trim('"');
-                folio = string.IsNullOrEmpty(raw) ? Catalogo.FolioConsecutivo.ToString() : raw;
-            }
-            else
-            {
-                var baseF = FolioBase(cot.Folio ?? "");
-                var existentes = (await Supa.From<PCotizacion>()
-                    .Filter("folio", Supabase.Postgrest.Constants.Operator.Like, baseF + "%").Get())
-                    .Models.Select(x => x.Folio).ToList();
-                folio = SiguienteVariante(baseF, existentes);
-            }
             var pcot = new PCotizacion
             {
-                Folio = folio, Fecha = DateTime.UtcNow,
+                Folio = "", Fecha = DateTime.UtcNow,
                 Vigencia = vigencia, RazonSocial = cot.RazonSocial, Proyecto = cot.Proyecto, Titulo = cot.Titulo,
                 Cliente = cot.Cliente, AtencionA = cot.AtencionA, Telefono = cot.Telefono, Ciudad = cot.Ciudad,
                 CotizadoPor = cot.CotizadoPor, DistribuidorId = distribuidorId, CreadoPor = Auth.Perfil?.Id,
@@ -685,8 +669,21 @@ else
             };
 
             // Siempre inserta: una edición se guarda como VARIANTE nueva (el original queda intacto).
-            var resp = await Supa.From<PCotizacion>().Insert(pcot);
-            var cotId = resp.Models.First().CotizacionId;
+            // El folio se pide DENTRO del ciclo: si ya estaba usado (23505) se toma el siguiente y se reintenta.
+            PCotizacion? guardada = null; string folio = ""; const int maxIntentos = 12;
+            for (int intento = 1; intento <= maxIntentos && guardada is null; intento++)
+            {
+                folio = eraEdicion ? await FolioVariante() : await TomarFolio();
+                pcot.Folio = folio;
+                try { guardada = (await Supa.From<PCotizacion>().Insert(pcot)).Models.First(); }
+                catch (Exception ex) when (EsFolioDuplicado(ex) && intento < maxIntentos) { }
+            }
+            if (guardada is null)
+            {
+                Aviso($"El folio {folio} y los siguientes ya están usados. Ajusta «Próximo folio» en Precios.", false);
+                return;
+            }
+            var cotId = guardada.CotizacionId;
 
             var filas = new List<PCotizacionLinea>(); int orden = 1;
             foreach (var l in conProducto)
@@ -700,16 +697,59 @@ else
                     AplicaDescuento = p.AplicaDescuento, Subtotal = MotorPrecios.R(Importe(l)),
                 });
             }
-            await Supa.From<PCotizacionLinea>().Insert(filas);
+            try { await Supa.From<PCotizacionLinea>().Insert(filas); }
+            catch
+            {
+                // Si se cae la red aquí, no dejar el encabezado sin renglones: se borra lo recién creado.
+                try { await Supa.From<PCotizacion>().Filter("cotizacion_id", Supabase.Postgrest.Constants.Operator.Equals, cotId.ToString()).Delete(); } catch { }
+                throw;
+            }
             editandoId = cotId; cot.Folio = folio;
             snapshot = EstadoJson();   // nuevo punto de referencia: re-descargar sin cambios no crea otra variante
             await DescargarPdf();
             await Catalogo.CargarAsync(forzar: true);   // refresca el consecutivo para la próxima cotización
             Aviso($"Cotización {folio} {(eraEdicion ? "guardada como variante (el original queda intacto)" : "guardada")} y PDF descargado.", true);
         }
-        catch (Exception ex) { Aviso("No se pudo guardar: " + ex.Message, false); }
+        catch (Exception ex) { Aviso("No se pudo guardar: " + Explicar(ex), false); }
         finally { guardando = false; }
     }
+
+    // Pide el consecutivo al servidor (atómico). Si la red falla reintenta; NUNCA cae al valor
+    // cacheado del catálogo, porque ese no avanza y repetiría el mismo folio en cada intento.
+    private async Task<string> TomarFolio()
+    {
+        Exception? ultimo = null;
+        for (int i = 1; i <= 3; i++)
+        {
+            try
+            {
+                var rpc = await Supa.Rpc("siguiente_folio", new Dictionary<string, object?>());
+                var raw = (rpc?.Content ?? "").Trim().Trim('"');
+                if (!string.IsNullOrEmpty(raw)) return raw;
+            }
+            catch (Exception ex) { ultimo = ex; }
+            if (i < 3) await Task.Delay(300 * i);
+        }
+        throw new InvalidOperationException("no se pudo obtener el folio del servidor; revisa tu conexión e intenta de nuevo." + (ultimo is null ? "" : $" ({ultimo.Message})"));
+    }
+
+    private async Task<string> FolioVariante()
+    {
+        var baseF = FolioBase(cot.Folio ?? "");
+        var existentes = (await Supa.From<PCotizacion>()
+            .Filter("folio", Supabase.Postgrest.Constants.Operator.Like, baseF + "%").Get())
+            .Models.Select(x => x.Folio).ToList();
+        return SiguienteVariante(baseF, existentes);
+    }
+
+    private static bool EsFolioDuplicado(Exception ex)
+        => ex.Message.Contains("23505") || ex.Message.Contains("cotizacion_folio_key");
+
+    // Safari dice "Load failed" y Chrome "Failed to fetch" cuando se cae la red: no es un error de datos.
+    private static string Explicar(Exception ex)
+        => (ex.Message.Contains("Load failed") || ex.Message.Contains("Failed to fetch"))
+            ? "se perdió la conexión con el servidor. Revisa tu internet y vuelve a intentar."
+            : ex.Message;
 
     private void Aviso(string m, bool ok) { mensaje = m; mensajeOk = ok; }
 
