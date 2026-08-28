@@ -166,6 +166,21 @@ else
                                 }
                             }
 
+                            @* Segundo color especial: parte de las piezas en un color fuera de línea.
+                               Solo lo ven vendedores y administradores. *@
+                            @if (AplicaSegundoColor(l, prod))
+                            {
+                                <label class="chk"><input type="checkbox" @bind="l.SegundoColor" @bind:after="() => OnColorChanged(l)" /> Segundo color especial (+20% por m²)</label>
+                                @if (l.SegundoColor)
+                                {
+                                    <label>Segundo color<input @bind="l.SegundoColorNombre" @bind:after="() => OnColorChanged(l)" placeholder="Escribe el color" /></label>
+                                    <label class="mini">m² en ese color (total del renglón)
+                                        <input type="number" min="0" step="0.01" @bind="l.SegundoColorM2" @bind:after="() => OnColorChanged(l)" />
+                                    </label>
+                                    <span class="extra-cant-wrap">+@Money(SobreprecioEspecialM2() * Factor)/m² → @Money((l.SegundoColorM2 ?? 0) * SobreprecioEspecialM2() * Factor)</span>
+                                }
+                            }
+
                             @* Lockers: color interior + extras *@
                             @if (EsFamilia(l, "LOCKERS") && !prod.EsExtra)
                             {
@@ -448,6 +463,20 @@ else
         return p.Precios.ContainsKey("UNICO") ? "UNICO" : p.Precios.Keys.FirstOrDefault() ?? "UNICO";
     }
 
+    // Segundo color especial: disponible en familias de precio fijo por pieza, y solo para
+    // quien cotiza de este lado (vendedores/admin). El distribuidor no lo ve ni lo puede activar.
+    private bool AplicaSegundoColor(LineaUI l, Producto p)
+        => Auth.PuedeVerTodo && !p.EsExtra
+           && (EsFamilia(l, "LOCKERS") || EsFamilia(l, "VESTIDORES") || EsFamilia(l, "BANCAS"));
+
+    // Sobreprecio por m² del color especial, tomado de la tabla de cubiertas (ESP_INT − G1).
+    // Se lee del catálogo en vez de cablearlo, para que siga a la lista de precios si cambia.
+    private decimal SobreprecioEspecialM2()
+    {
+        var p = Catalogo.Productos.FirstOrDefault(x => x.Precios.ContainsKey("ESP_INT") && x.Precios.ContainsKey("G1"));
+        return p is null ? 0m : p.Precios["ESP_INT"] - p.Precios["G1"];
+    }
+
     private decimal PrecioUnit(LineaUI l)
     {
         var p = ProdDe(l); if (p is null) return 0m;
@@ -473,6 +502,15 @@ else
             decimal qty = l.Cantidad > 0 ? l.Cantidad : 1m;
             precio += extrasTotal / qty;
         }
+        // Segundo color especial: se cobra SOLO el sobreprecio del 20%, porque el material de esas
+        // piezas ya va dentro del precio base. Los m² son el TOTAL del renglón (igual que los extras),
+        // así que se amortizan en el unitario para que unitario × cantidad cuadre.
+        // No se filtra por rol: una cotización hecha por un vendedor debe valer lo mismo al reabrirla.
+        if (l.SegundoColor && l.SegundoColorM2 > 0)
+        {
+            decimal qty2 = l.Cantidad > 0 ? l.Cantidad : 1m;
+            precio += (l.SegundoColorM2 ?? 0) * SobreprecioEspecialM2() / qty2;
+        }
         return precio * Factor;   // LATAM: ÷ divisor (USD); MXN: ×1
     }
 
@@ -486,6 +524,7 @@ else
     {
         l.ProductoId = null; l.Grupo = ""; l.Descripcion = ""; l.LargoCm = l.AnchoCm = null;
         l.ColorNombre = l.ColorInterior = l.ColorEspecialNombre = ""; l.ColorEspecial = false; l.Exterior = false; l.ExtrasCant.Clear();
+        l.SegundoColor = false; l.SegundoColorNombre = ""; l.SegundoColorM2 = null;
         l.Canto = ""; l.Perforacion = false; l.PerforacionCant = 1; l.Grabado = false; l.GrabadoCant = 1;
         StateHasChanged();
     }
@@ -599,6 +638,9 @@ else
         var colorTxt = ColorFinal(l);
         if (!string.IsNullOrEmpty(colorTxt)) sb.Append($" COLOR: {colorTxt}.");
         if (!string.IsNullOrEmpty(l.ColorInterior)) sb.Append($" INTERIOR: {l.ColorInterior}.");
+        if (l.SegundoColor && !string.IsNullOrWhiteSpace(l.SegundoColorNombre))
+            sb.Append($" SEGUNDO COLOR: {l.SegundoColorNombre.Trim().ToUpperInvariant()}"
+                    + (l.SegundoColorM2 > 0 ? $" ({l.SegundoColorM2:0.##} M²)." : "."));
         if (l.Perforacion) sb.Append($" PERFORACIÓN: SÍ (x{Math.Max(1, l.PerforacionCant)}).");
         if ((EsFamilia(l, "CUBIERTAS") || EsFamilia(l, "BANCAS")) && l.Grabado) sb.Append($" GRABADO LÁSER (x{Math.Max(1, l.GrabadoCant)}).");
         if (EsFamilia(l, "LOCKERS") && l.ExtrasCant.Count > 0)
@@ -822,6 +864,9 @@ else
         public string ColorEspecialNombre { get; set; } = "";
         public string ColorInterior { get; set; } = "";
         public bool ColorEspecial { get; set; }
+        public bool SegundoColor { get; set; }
+        public string SegundoColorNombre { get; set; } = "";
+        public decimal? SegundoColorM2 { get; set; }
         public bool Exterior { get; set; }
         public string Canto { get; set; } = "";
         public bool Perforacion { get; set; }
