@@ -38,7 +38,7 @@
     display: block;
     width: auto;
     height: auto;
-    max-width: 320px;
+    max-width: 15.24rem;
     max-height: 6.8rem;     /* limita por alto para que no se salga del encabezado */
     box-sizing: border-box;
 }
