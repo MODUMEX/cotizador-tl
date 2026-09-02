@@ -6,8 +6,15 @@
   const ROJO = [192, 57, 43];
   const GRIS = [120, 120, 120];
 
-  const DIR = ["Calle La Válvula #15", "Parque Industrial Perisur, 45619",
-               "San Pedro Tlaquepaque, Jalisco.", "Tel. 33 3003 3200"];
+  // La dirección depende de dónde se fabrica: la planta de México o la de Costa Rica.
+  const DIR_MX = ["Calle La Válvula #15", "Parque Industrial Perisur, 45619",
+                  "San Pedro Tlaquepaque, Jalisco.", "Tel. 33 3003 3200"];
+  const DIR_CR = ["PROVINCIA 02 ALAJUELA, CANTON 03 GRECIA, PUENTE PIEDRA,",
+                  "RINCON DE ARIAS, KILOMETRO TRES SOBRE LA RADIAL.",
+                  "DOMICILIO: CIENTO CINCUENTA Y CUATRO ARNOLDO KOPPER VEGA,",
+                  "PARQUE INDUSTRIAL ACTIVA CON FACHADA DE CEMENTO, MODULO E,",
+                  "NAVE INDUSTRIAL MULTITENANT FINCA TRES."];
+  const dirDe = (d) => (d && d.fabricacion === "Costa Rica") ? DIR_CR : DIR_MX;
   // El texto "no incluye..." se arma según lo que SÍ se esté cobrando (instalación/flete).
   function bannerLineas(d) {
     const excl = [];
@@ -70,7 +77,7 @@
       // Dirección (izquierda, debajo del logo TL)
       doc.setFont("Roboto", "normal"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
       let yy = y + tlH + 12;
-      DIR.forEach((l) => { doc.text(l, M, yy); yy += 10; });
+      dirDe(d).forEach((l) => { doc.text(l, M, yy); yy += 10; });
 
       // Razón social / nombre comercial (centro)
       if (d.razonSocial) {
@@ -216,6 +223,22 @@
         yCajas = doc.lastAutoTable.finalY + 10;
       }
 
+      // ---------- Condiciones para el cliente (solo en el PDF de cliente) ----------
+      // El PDF del distribuidor lleva las condiciones fijas de siempre, al pie.
+      if (d.tipoPdf === "CLIENTE" && d.condicionesCliente && String(d.condicionesCliente).trim()) {
+        const filasCond = String(d.condicionesCliente).split(/\r?\n/).map((x) => x.trim()).filter((x) => x).map((x) => [x]);
+        doc.autoTable({
+          startY: yCajas,
+          margin: { left: M },
+          tableWidth: 320,
+          head: [["CONDICIONES"]],
+          body: filasCond,
+          styles: cajaEstilo,
+          headStyles: cajaHead,
+        });
+        yCajas = doc.lastAutoTable.finalY + 10;
+      }
+
       // ---------- Datos bancarios (izquierda, con verde de marca) ----------
       if (d.datosBancarios && String(d.datosBancarios).trim()) {
         const filasBanco = String(d.datosBancarios).split(/\r?\n/).map((x) => x.trim()).filter((x) => x).map((x) => [x]);
@@ -247,8 +270,12 @@
 
       // ---------- Pie ----------
       doc.setFont("Roboto", "normal"); doc.setFontSize(6.5); doc.setTextColor(...GRIS);
-      doc.splitTextToSize(NOTA, W - 2 * M).forEach((l, i) => doc.text(l, W / 2, by + i * 9, { align: "center" }));
-      by += 9 * 2 + 14;
+      // Las condiciones fijas son del PDF del distribuidor. Al cliente se le
+      // muestran las que se escriben en Cotizar, en su propia caja.
+      if (d.tipoPdf !== "CLIENTE") {
+        doc.splitTextToSize(NOTA, W - 2 * M).forEach((l, i) => doc.text(l, W / 2, by + i * 9, { align: "center" }));
+        by += 9 * 2 + 14;
+      }
       doc.setFont("Roboto", "bold"); doc.setFontSize(8); doc.setTextColor(...OSCURO);
       doc.text("THIN LAMINATES", W / 2, by, { align: "center" });
       doc.setFont("Roboto", "normal"); doc.setFontSize(7); doc.setTextColor(...GRIS);

@@ -70,6 +70,9 @@ else
             <div class="campos">
                 <label>Descuento adicional % (admin)<input type="number" step="0.01" @bind="cot.DescuentoPct" disabled="@(!Auth.EsAdmin)" /></label>
                 <label>IVA %<input type="number" step="0.01" @bind="cot.IvaPct" disabled="@(!Auth.EsAdmin)" /></label>
+                @* El IVA del cliente lo edita cualquiera: es el que se le cobra a él,
+                   no el de la zona del distribuidor. Solo afecta al PDF de cliente. *@
+                <label>IVA cliente %<input type="number" step="0.01" @bind="cot.IvaClientePct" /></label>
                 <label>Anticipo %<input type="number" value="60" disabled /></label>
             </div>
             <label>Comentarios o instrucciones especiales<textarea @bind="cot.Comentarios" rows="2"></textarea></label>
@@ -270,6 +273,11 @@ else
             <h2>Datos bancarios del distribuidor</h2>
             <p class="muted small">Texto libre; sale en el PDF.</p>
             <textarea @bind="cot.DatosBancarios" rows="6" placeholder="Nombre, Banco, Cuenta, CLABE"></textarea>
+
+            <h2 style="margin-top:1rem">Condiciones para el cliente</h2>
+            <p class="muted small">Solo salen en el PDF del cliente. El del distribuidor lleva las condiciones de siempre.</p>
+            <textarea @bind="cot.CondicionesCliente" rows="5"
+                      placeholder="Ej.: CONDICIONES DE PAGO: 50% DE ANTICIPO, 50% CONTRA ENTREGA."></textarea>
         </section>
         <section class="card totales">
             <h2>Totales <span class="muted" style="font-size:.8rem">(@MonedaActual@(RegionActual=="LATAM" ? $" · ÷{Catalogo.DivisorUsd:0.##}" : ""))</span></h2>
@@ -551,7 +559,7 @@ else
     }
 
     // Admin/Vendedor cambia la moneda a mano: ajusta el IVA default (editable) y recalcula.
-    private void OnMonedaChanged() { cot.IvaPct = IvaDeMoneda(monedaSel); StateHasChanged(); }
+    private void OnMonedaChanged() { cot.IvaPct = IvaDeMoneda(monedaSel); cot.IvaClientePct = cot.IvaPct; StateHasChanged(); }
 
     // Cubiertas REDONDAS de exterior (grupo G4): el diámetro máximo es 120 cm. Se limita y se avisa.
     private const decimal MaxG4Cm = 120m;
@@ -576,6 +584,7 @@ else
             cot.DescuentoPct = 0m;   // "descuento adicional" global (solo admin); base va por familia en cada renglón
             if (!Auth.PuedeVerTodo) monedaSel = MonedaDeRegion(RegionActual); // distribuidor: moneda fija por su región
             cot.IvaPct = IvaDeMoneda(monedaSel);   // IVA default según la moneda (editable)
+            cot.IvaClientePct = cot.IvaPct;        // el del cliente arranca igual y se edita aparte
             fabricacion = RegionActual == "México" ? "México" : "Costa Rica"; // default: colores según fabricación
             if (string.IsNullOrWhiteSpace(cot.RazonSocial)) cot.RazonSocial = d.Nombre;
             // Aplica el descuento por familia a cada renglón; el cambio de región solo invalida el
@@ -819,7 +828,8 @@ else
             t = MotorPrecios.Calcular(cot);
         else
         {
-            var sin = new Cotizacion { IvaPct = cot.IvaPct, AnticipoPct = cot.AnticipoPct, DescuentoPct = 0m,
+            // El PDF de cliente lleva SU IVA, no el de la zona del distribuidor.
+            var sin = new Cotizacion { IvaPct = cot.IvaClientePct, AnticipoPct = cot.AnticipoPct, DescuentoPct = 0m,
                 GastosIndirectos = cot.GastosIndirectos, GastosEnvio = cot.GastosEnvio,
                 Lineas = cot.Lineas.Select(l => new LineaCotizacion { Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, AplicaDescuento = false }).ToList() };
             t = MotorPrecios.Calcular(sin);
@@ -833,8 +843,8 @@ else
             razonSocial = cot.RazonSocial, proyecto = cot.Proyecto, titulo = cot.Titulo, cliente = cot.Cliente,
             atencionA = cot.AtencionA, telefono = cot.Telefono, ciudad = cot.Ciudad, cotizadoPor = cot.CotizadoPor,
             comentarios = cot.Comentarios, descuentoPct = cot.DescuentoPct.ToString("0.#"),
-            ivaPct = cot.IvaPct.ToString("0.#"), anticipoPct = (double)cot.AnticipoPct,
-            datosBancarios = cot.DatosBancarios,
+            ivaPct = (conDescuento ? cot.IvaPct : cot.IvaClientePct).ToString("0.#"), anticipoPct = (double)cot.AnticipoPct,
+            datosBancarios = cot.DatosBancarios, condicionesCliente = cot.CondicionesCliente, fabricacion = fabricacion,
             moneda = MonedaActual, mostrarDescuento = conDescuento, tipoPdf = conDescuento ? "DISTRIBUIDOR" : "CLIENTE",
             incluyeInstalacion = hayInstalacion, incluyeFlete = hayFlete,
             totales = new { subtotal = (double)t.Subtotal, descuentoMonto = (double)t.DescuentoMonto, subtotalDesc = (double)t.SubtotalDesc,

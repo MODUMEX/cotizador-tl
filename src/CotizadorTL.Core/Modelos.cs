@@ -82,9 +82,15 @@ public sealed class Cotizacion
     /// <summary>Gastos de envío: monto que se suma ANTES del IVA (no recibe descuento).</summary>
     public decimal GastosEnvio { get; set; }
     public decimal IvaPct { get; set; } = 16m;
+    /// <summary>IVA % que se le cobra al CLIENTE. Solo se usa en el PDF de cliente;
+    /// el del distribuidor sigue con <see cref="IvaPct"/>, que sale de la zona.</summary>
+    public decimal IvaClientePct { get; set; } = 16m;
     public decimal AnticipoPct { get; set; } = 60m;
     /// <summary>Datos bancarios del distribuidor (texto libre, se muestra en el PDF).</summary>
     public string? DatosBancarios { get; set; }
+    /// <summary>Condiciones que se le muestran al CLIENTE (editables por quien cotiza).
+    /// El PDF del distribuidor lleva las condiciones fijas de siempre.</summary>
+    public string? CondicionesCliente { get; set; }
     public List<LineaCotizacion> Lineas { get; set; } = new();
 }
 
