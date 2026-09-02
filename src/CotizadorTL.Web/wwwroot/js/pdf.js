@@ -13,7 +13,8 @@
                   "RINCON DE ARIAS, KILOMETRO TRES SOBRE LA RADIAL.",
                   "DOMICILIO: CIENTO CINCUENTA Y CUATRO ARNOLDO KOPPER VEGA,",
                   "PARQUE INDUSTRIAL ACTIVA CON FACHADA DE CEMENTO, MODULO E,",
-                  "NAVE INDUSTRIAL MULTITENANT FINCA TRES."];
+                  "NAVE INDUSTRIAL MULTITENANT FINCA TRES.",
+                  "Tel. +506 6391 4639"];
   const dirDe = (d) => (d && d.fabricacion === "Costa Rica") ? DIR_CR : DIR_MX;
   // El texto "no incluye..." se arma según lo que SÍ se esté cobrando (instalación/flete).
   function bannerLineas(d) {
@@ -29,7 +30,9 @@
   }
   const NOTA = "CARGOS POR ALMACENAJE $100 POR DÍA NATURAL, DESPUÉS DE 1 MES DE LA FECHA DE ENTREGA DEL PEDIDO. " +
                "CONDICIONES DE PAGO: 60% DE ANTICIPO, 40% DE SALDO EL CUAL DEBE SER LIQUIDADO ANTES DE LA ENTREGA DEL PRODUCTO.";
-  const CONTACTO = "TEL: 33 3003 3200 EXT 201   CEL: 33 1044 0220 / 33 1446 2754 / 33 1942 1893";
+  const CONTACTO_MX = "TEL: 33 3003 3200 EXT 201   CEL: 33 1044 0220 / 33 1446 2754 / 33 1942 1893";
+  const CONTACTO_CR = "TEL: +506 6391 4639";
+  const contactoDe = (d) => (d && d.fabricacion === "Costa Rica") ? CONTACTO_CR : CONTACTO_MX;
 
   // Símbolo de moneda: Colones → ₡ (se dibuja gracias a la fuente Roboto embebida); Pesos/Dólares → $
   let SIMBOLO = "$";
@@ -279,7 +282,7 @@
       doc.setFont("Roboto", "bold"); doc.setFontSize(8); doc.setTextColor(...OSCURO);
       doc.text("THIN LAMINATES", W / 2, by, { align: "center" });
       doc.setFont("Roboto", "normal"); doc.setFontSize(7); doc.setTextColor(...GRIS);
-      doc.text(CONTACTO, W / 2, by + 11, { align: "center" });
+      doc.text(contactoDe(d), W / 2, by + 11, { align: "center" });
       doc.setTextColor(...VERDE); doc.setFont("Roboto", "bold");
       doc.text("WWW.MODUMEX.COM", W / 2, by + 22, { align: "center" });
 
