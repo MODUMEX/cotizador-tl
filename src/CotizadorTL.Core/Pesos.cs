@@ -24,7 +24,10 @@ public sealed record PesoEnvio(
 /// </summary>
 public static class Pesos
 {
-    /// <summary>Lo que se carga en una tarima y su medida, para calcular cuántas van.</summary>
+    /// <summary>
+    /// Lo que se CARGA sobre una tarima, y su medida. La tarima vacía no se cuenta:
+    /// los 850 kg son producto, no el peso del tablero.
+    /// </summary>
     public const decimal TarimaKg = 850m;
     public const decimal TarimaMaxKg = 900m;
     public const decimal TarimaLargoM = 2.15m;
