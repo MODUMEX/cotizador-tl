@@ -836,6 +836,10 @@ else
         }
         bool hayInstalacion = lineas.Any(l => ProdDe(l)?.CodigoSap.StartsWith("INST-") == true);
         bool hayFlete = lineas.Any(l => ProdDe(l)?.CodigoSap.StartsWith("FLETE") == true);
+        // Peso estimado del pedido, para poder cotizar el envío. Va en los dos PDF.
+        var peso = Pesos.Total(lineas
+            .Where(l => ProdDe(l) is not null)
+            .Select(l => (ProdDe(l)!, l.Cantidad, l.LargoCm, l.AnchoCm, (string?)l.Grupo)));
         var dto = new
         {
             folio = cot.Folio, vigencia = vigencia?.ToString("dd/MM/yyyy") ?? "", entrega = entrega,
@@ -847,6 +851,12 @@ else
             datosBancarios = cot.DatosBancarios, condicionesCliente = cot.CondicionesCliente, fabricacion = fabricacion,
             moneda = MonedaActual, mostrarDescuento = conDescuento, tipoPdf = conDescuento ? "DISTRIBUIDOR" : "CLIENTE",
             incluyeInstalacion = hayInstalacion, incluyeFlete = hayFlete,
+            peso = new
+            {
+                kg = (double)peso.Kg, tarimas = peso.Tarimas, sinPeso = peso.RenglonesSinPeso,
+                tarimaKg = (double)Pesos.TarimaKg, tarimaMaxKg = (double)Pesos.TarimaMaxKg,
+                tarimaLargo = (double)Pesos.TarimaLargoM, tarimaAncho = (double)Pesos.TarimaAnchoM,
+            },
             totales = new { subtotal = (double)t.Subtotal, descuentoMonto = (double)t.DescuentoMonto, subtotalDesc = (double)t.SubtotalDesc,
                 gastosIndirectos = (double)t.GastosIndirectos, gastosEnvio = (double)t.GastosEnvio,
                 ivaMonto = (double)t.IvaMonto, granTotal = (double)t.GranTotal, anticipo = (double)t.Anticipo, saldo = (double)t.Saldo },

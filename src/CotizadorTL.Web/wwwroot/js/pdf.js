@@ -269,6 +269,31 @@
         yCajas = doc.lastAutoTable.finalY + 10;
       }
 
+      // ---------- Peso y envío (izquierda, en los dos PDF) ----------
+      // Es una estimación para cotizar el flete: sale de los pesos de producción
+      // de cada mueble y de los kilos por m² del laminado. No lleva empaque ni
+      // tarima, así que la carga real pesa un poco más.
+      const pe = d.peso;
+      if (pe && pe.kg > 0) {
+        const kg = (n) => Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " kg";
+        const filasPeso = [
+          ["PESO ESTIMADO", kg(pe.kg)],
+          ["TARIMAS DE " + Math.round(pe.tarimaLargo * 100) / 100 + " × " + Math.round(pe.tarimaAncho * 100) / 100 + " M", pe.tarimas + " (hasta " + Math.round(pe.tarimaKg) + " kg c/u)"],
+        ];
+        if (pe.sinPeso > 0) filasPeso.push(["SIN PESO EN TABLA", pe.sinPeso + " renglón(es)"]);
+        doc.autoTable({
+          startY: yCajas,
+          margin: { left: M },
+          tableWidth: 320,
+          head: [["PESO Y ENVÍO (ESTIMADO)", ""]],
+          body: filasPeso,
+          styles: cajaEstilo,
+          headStyles: cajaHead,
+          columnStyles: { 0: { fontStyle: "bold" }, 1: { halign: "right" } },
+        });
+        yCajas = doc.lastAutoTable.finalY + 10;
+      }
+
       // ---------- Datos bancarios (izquierda, con verde de marca) ----------
       if (d.datosBancarios && String(d.datosBancarios).trim()) {
         const filasBanco = String(d.datosBancarios).split(/\r?\n/).map((x) => x.trim()).filter((x) => x).map((x) => [x]);
