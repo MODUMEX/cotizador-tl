@@ -188,29 +188,35 @@
       rowT("GRAN TOTAL", tot.granTotal, { bold: true });
 
       // ---------- Condiciones de pago (izquierda) ----------
-      const anticipoPct = Number(d.anticipoPct || 60);
-      const cy0 = topBloque;
-      doc.autoTable({
-        startY: cy0,
-        margin: { left: M },
-        tableWidth: 200,
-        head: [["CONDICIONES DE PAGO", ""]],
-        body: [
-          ["ANTICIPO " + anticipoPct + "%", money(tot.anticipo)],
-          ["SALDO " + (100 - anticipoPct) + "%", money(tot.saldo)],
-          ["GRAN TOTAL", money(tot.granTotal)],
-        ],
-        styles: { font: "Roboto", fontSize: 8, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
-        headStyles: { fillColor: [235, 235, 235], textColor: OSCURO, halign: "center", fontStyle: "bold" },
-        columnStyles: { 0: { fontStyle: "bold" }, 1: { halign: "right" } },
-      });
+      // El anticipo y el saldo son el trato entre Modumex y el distribuidor:
+      // no van en el PDF que el distribuidor le entrega a su cliente, que lleva
+      // sus propias condiciones escritas a mano.
+      let finCondPago = topBloque;
+      if (d.tipoPdf !== "CLIENTE") {
+        const anticipoPct = Number(d.anticipoPct || 60);
+        doc.autoTable({
+          startY: topBloque,
+          margin: { left: M },
+          tableWidth: 200,
+          head: [["CONDICIONES DE PAGO", ""]],
+          body: [
+            ["ANTICIPO " + anticipoPct + "%", money(tot.anticipo)],
+            ["SALDO " + (100 - anticipoPct) + "%", money(tot.saldo)],
+            ["GRAN TOTAL", money(tot.granTotal)],
+          ],
+          styles: { font: "Roboto", fontSize: 8, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+          headStyles: { fillColor: [235, 235, 235], textColor: OSCURO, halign: "center", fontStyle: "bold" },
+          columnStyles: { 0: { fontStyle: "bold" }, 1: { halign: "right" } },
+        });
+        finCondPago = doc.lastAutoTable.finalY;
+      }
 
       const cajaEstilo = { font: "Roboto", fontSize: 8, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 };
       const cajaHead = { fillColor: VERDE, textColor: [255, 255, 255], halign: "center", fontStyle: "bold" };
 
       // Las cajas (comentarios / datos bancarios) van a lo ancho DEBAJO de ambas columnas
       // (totales a la derecha y condiciones a la izquierda), para no traslaparse con el IVA / Gran total.
-      let yCajas = Math.max(fy, doc.lastAutoTable.finalY) + 10;
+      let yCajas = Math.max(fy, finCondPago) + 10;
 
       // ---------- Comentarios (izquierda) ----------
       if (d.comentarios && String(d.comentarios).trim()) {
