@@ -269,12 +269,13 @@
         yCajas = doc.lastAutoTable.finalY + 10;
       }
 
-      // ---------- Peso y envío (izquierda, en los dos PDF) ----------
+      // ---------- Peso y envío (izquierda, solo para el distribuidor) ----------
       // Es una estimación para cotizar el flete: sale de los pesos de producción
       // de cada mueble y de los kilos por m² del laminado. No lleva empaque ni
-      // tarima, así que la carga real pesa un poco más.
+      // tarima, así que la carga real pesa un poco más. Al cliente no se le
+      // muestra: es un dato para armar el envío, no parte de la oferta.
       const pe = d.peso;
-      if (pe && pe.kg > 0) {
+      if (d.tipoPdf !== "CLIENTE" && pe && pe.kg > 0) {
         const kg = (n) => Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " kg";
         const filasPeso = [
           ["PESO ESTIMADO", kg(pe.kg)],
