@@ -77,16 +77,35 @@
       doc.setFont("Roboto", "bold"); doc.setFontSize(24); doc.setTextColor(...VERDE);
       doc.text(txt(d.folio), W - M, folioY + 24, { align: "right" });
 
-      // Dirección (izquierda, debajo del logo TL)
-      doc.setFont("Roboto", "normal"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
-      let yy = y + tlH + 12;
-      dirDe(d).forEach((l) => { doc.text(l, M, yy); yy += 10; });
-
-      // Razón social / nombre comercial (centro)
+      // La razón social va debajo del logo del distribuidor, que es a quien
+      // nombra, centrada en el hueco que dejan los logos de los extremos. Se
+      // reparte en los renglones que haga falta y encoge la letra antes que
+      // salirse de esa columna. La dirección arranca después, para que un nombre
+      // largo —"SOCIEDAD ANONIMA DE CAPITAL VARIABLE" y parecidos— nunca se le
+      // encime como pasaba antes.
+      const izqRazon = M + tlW + 18, derRazon = W - M - 122;
+      let finRazon = y + tlH;
       if (d.razonSocial) {
-        doc.setFont("Roboto", "bold"); doc.setFontSize(10); doc.setTextColor(...OSCURO);
-        doc.text(txt(d.razonSocial).toUpperCase(), W / 2, y + tlH + 4, { align: "center" });
+        const anchoRazon = derRazon - izqRazon;
+        const texto = txt(d.razonSocial).toUpperCase();
+        doc.setFont("Roboto", "bold"); doc.setTextColor(...OSCURO);
+        let tam = 10;
+        doc.setFontSize(tam);
+        let lineas = doc.splitTextToSize(texto, anchoRazon);
+        while (lineas.length > 3 && tam > 7) {
+          tam -= 0.5;
+          doc.setFontSize(tam);
+          lineas = doc.splitTextToSize(texto, anchoRazon);
+        }
+        let ry = y + tlH + 13;
+        lineas.forEach((l) => { doc.text(l, (izqRazon + derRazon) / 2, ry, { align: "center" }); ry += tam + 2; });
+        finRazon = ry - (tam + 2);
       }
+
+      // Dirección (izquierda, debajo del logo TL y de la razón social)
+      doc.setFont("Roboto", "normal"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+      let yy = Math.max(y + tlH + 12, finRazon + 12);
+      dirDe(d).forEach((l) => { doc.text(l, M, yy); yy += 10; });
 
       // ---------- Datos (PROYECTO/CLIENTE...) ----------
       y = Math.max(yy, folioY + 30) + 6;
@@ -217,6 +236,8 @@
       // Las cajas (comentarios / datos bancarios) van a lo ancho DEBAJO de ambas columnas
       // (totales a la derecha y condiciones a la izquierda), para no traslaparse con el IVA / Gran total.
       let yCajas = Math.max(fy, finCondPago) + 10;
+      // A partir de acá, yCajas es SIEMPRE una altura de la hoja donde se está
+      // dibujando: si una caja se pasó a la hoja siguiente, se sigue desde ahí.
 
       // ---------- Comentarios (izquierda) ----------
       if (d.comentarios && String(d.comentarios).trim()) {
@@ -266,10 +287,14 @@
       // ---------- Banner verde ----------
       const banner = bannerLineas(d);
       const bh = 12 * banner.length + 10;
-      let by = Math.max(fy, doc.lastAutoTable.finalY) + 18;
-      // El banner y el pie se dibujan con coordenadas manuales (no paginan solos):
-      // si no caben en lo que resta de la hoja, saltamos a una página nueva.
-      if (by + bh + 90 > H - 20) { doc.addPage(); by = 40; }
+      // El banner y el pie se dibujan con coordenadas manuales (no paginan solos),
+      // así que hay que medir lo que ocupan y ver si cabe en lo que resta de hoja.
+      // Antes se comparaba contra el bloque de totales, que puede haber quedado en
+      // una hoja anterior: por eso el banner se iba a una hoja nueva estando la
+      // actual medio vacía.
+      const altoPie = (d.tipoPdf !== "CLIENTE" ? 32 : 0) + 34;
+      let by = yCajas + 8;
+      if (by + bh + 16 + altoPie > H - 24) { doc.addPage(); by = 40; }
       doc.setFillColor(...VERDE);
       doc.rect(M, by, W - 2 * M, bh, "F");
       doc.setFont("Roboto", "bold"); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
