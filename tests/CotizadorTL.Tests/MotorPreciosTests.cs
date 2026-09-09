@@ -137,4 +137,62 @@ public class MotorPreciosTests
         decimal precio = MotorPrecios.PrecioUnitario(p, "G4", 1m, largoCm: 110m, anchoCm: 60m);
         Assert.Equal(5520.6402m * 0.66m, precio);
     }
+
+    // ---- Los TRES descuentos en cascada: distribuidor, cliente y adicional ----
+    [Fact]
+    public void TresDescuentos_CascadaYDesglose()
+    {
+        // 100 de producto: 20% distribuidor, 10% cliente, 5% adicional
+        var c = new Cotizacion
+        {
+            IvaPct = 0m,
+            DescuentoPct = 5m,           // el adicional
+            DescuentoClientePct = 10m,   // el del cliente
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
+        };
+        var t = MotorPrecios.Calcular(c);
+
+        // la cascada: 100 -> 80 -> 72 -> 68.40
+        Assert.Equal(100m, t.Subtotal);
+        Assert.Equal(80m, t.SubtotalDistribuidor);
+        Assert.Equal(20m, t.DescuentoDistribuidor);
+        Assert.Equal(72m, t.SubtotalCliente);
+        Assert.Equal(8m, t.DescuentoCliente);
+        Assert.Equal(3.60m, t.DescuentoExtra);
+        Assert.Equal(68.40m, t.SubtotalDesc);
+        // y el desglose cierra contra el descuento total
+        Assert.Equal(t.Subtotal - t.SubtotalDesc, t.DescuentoDistribuidor + t.DescuentoCliente + t.DescuentoExtra);
+    }
+
+    // ---- El orden de la cascada no cambia el total: multiplicar es conmutativo ----
+    [Fact]
+    public void OrdenDeLaCascada_NoCambiaElTotal()
+    {
+        var normal = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoPct = 5m, DescuentoClientePct = 10m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 3, PrecioUnitario = 1234.56m, DescuentoPct = 20m } },
+        };
+        // los mismos tres porcentajes, intercambiados de lugar
+        var alReves = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoPct = 20m, DescuentoClientePct = 5m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 3, PrecioUnitario = 1234.56m, DescuentoPct = 10m } },
+        };
+        Assert.Equal(MotorPrecios.Calcular(normal).SubtotalDesc, MotorPrecios.Calcular(alReves).SubtotalDesc);
+    }
+
+    // ---- Servicios y flete no reciben NINGUNO de los tres ----
+    [Fact]
+    public void SinDescuento_NoRecibeElDelCliente()
+    {
+        var c = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoPct = 5m, DescuentoClientePct = 10m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 500m, DescuentoPct = 20m, AplicaDescuento = false } },
+        };
+        var t = MotorPrecios.Calcular(c);
+        Assert.Equal(500m, t.SubtotalDesc);
+        Assert.Equal(0m, t.DescuentoCliente);
+    }
 }

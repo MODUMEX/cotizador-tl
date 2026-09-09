@@ -75,8 +75,13 @@ public sealed class Cotizacion
     public string Moneda { get; set; } = "MXN";
     /// <summary>MXN por 1 USD (para convertir productos en USD a MXN).</summary>
     public decimal TipoCambio { get; set; } = 1m;
-    /// <summary>DESCUENTO DISTRIBUIDOR % (global).</summary>
+    /// <summary>DESCUENTO ADICIONAL % (global, solo admin). Es el "extra".</summary>
     public decimal DescuentoPct { get; set; }
+    /// <summary>
+    /// DESCUENTO AL CLIENTE %. Lo pone quien cotiza —no hace falta ser admin— y
+    /// es el único de los tres que el cliente ve en su PDF.
+    /// </summary>
+    public decimal DescuentoClientePct { get; set; }
     /// <summary>Gastos indirectos: monto que se suma ANTES del IVA (no recibe descuento).</summary>
     public decimal GastosIndirectos { get; set; }
     /// <summary>Gastos de envío: monto que se suma ANTES del IVA (no recibe descuento).</summary>
@@ -97,11 +102,22 @@ public sealed class Cotizacion
 /// <summary>Totales calculados (lo que muestra el PDF y se persiste en BD).</summary>
 public sealed record Totales(
     decimal Subtotal,          // SUBTOTAL PÚBLICO (antes de descuento)
-    decimal DescuentoMonto,    // DESCUENTO DISTRIBUIDOR
-    decimal SubtotalDesc,      // SUBTOTAL DESCUENTO
+    decimal DescuentoMonto,    // los TRES descuentos juntos
+    decimal SubtotalDesc,      // SUBTOTAL con los tres aplicados
     decimal IvaMonto,          // IVA
     decimal GranTotal,         // GRAN TOTAL
     decimal Anticipo,          // ANTICIPO %
     decimal Saldo,             // SALDO
     decimal GastosIndirectos = 0m,  // se suman antes del IVA
-    decimal GastosEnvio = 0m);
+    decimal GastosEnvio = 0m,
+    // ---- el desglose de la cascada, para el PDF del distribuidor ----
+    /// <summary>Lo que se descontó por el distribuidor (descuento de renglón).</summary>
+    decimal DescuentoDistribuidor = 0m,
+    /// <summary>Subtotal después del descuento del distribuidor. Es la BASE del cliente.</summary>
+    decimal SubtotalDistribuidor = 0m,
+    /// <summary>Lo que se descontó al cliente, sobre el subtotal de arriba.</summary>
+    decimal DescuentoCliente = 0m,
+    /// <summary>Subtotal después del descuento del cliente. Es lo que el cliente paga (sin IVA).</summary>
+    decimal SubtotalCliente = 0m,
+    /// <summary>Lo que se descontó de más (el "extra"), que el cliente NO ve.</summary>
+    decimal DescuentoExtra = 0m);

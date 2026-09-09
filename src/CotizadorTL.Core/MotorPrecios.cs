@@ -44,10 +44,22 @@ public static class MotorPrecios
 
     /// <summary>Neto de un renglón aplicando descuento de renglón + global (si corresponde).</summary>
     public static decimal NetoLinea(LineaCotizacion l, decimal descuentoGlobalPct)
+        => NetoLinea(l, descuentoGlobalPct, 0m);
+
+    /// <summary>
+    /// Neto de un renglón con la cascada completa: descuento del distribuidor
+    /// (el del renglón), después el del cliente y por último el adicional.
+    ///
+    /// El ORDEN no cambia el total —multiplicar factores es conmutativo— pero sí
+    /// cambia los subtotales intermedios que se muestran en el desglose.
+    /// </summary>
+    public static decimal NetoLinea(LineaCotizacion l, decimal descuentoGlobalPct, decimal descuentoClientePct)
     {
         decimal bruto = SubtotalLinea(l);
         if (!l.AplicaDescuento) return bruto;
-        decimal factor = (1 - l.DescuentoPct / 100m) * (1 - descuentoGlobalPct / 100m);
+        decimal factor = (1 - l.DescuentoPct / 100m)
+                       * (1 - descuentoClientePct / 100m)
+                       * (1 - descuentoGlobalPct / 100m);
         return bruto * factor;
     }
 
@@ -55,11 +67,15 @@ public static class MotorPrecios
     public static Totales Calcular(Cotizacion c)
     {
         decimal subtotal = 0m;     // público (antes de descuento)
-        decimal subtotalDesc = 0m; // después de descuentos
+        decimal subtotalDist = 0m; // solo con el descuento del distribuidor
+        decimal subtotalCli = 0m;  // + el del cliente
+        decimal subtotalDesc = 0m; // + el adicional: el neto de verdad
         foreach (var l in c.Lineas)
         {
             subtotal     += SubtotalLinea(l);
-            subtotalDesc += NetoLinea(l, c.DescuentoPct);
+            subtotalDist += NetoLinea(l, 0m, 0m);
+            subtotalCli  += NetoLinea(l, 0m, c.DescuentoClientePct);
+            subtotalDesc += NetoLinea(l, c.DescuentoPct, c.DescuentoClientePct);
         }
         decimal descuentoMonto = subtotal - subtotalDesc;
         // Gastos indirectos y de envío se suman ANTES del IVA (no reciben descuento).
@@ -78,6 +94,11 @@ public static class MotorPrecios
             Anticipo:       R(anticipo),
             Saldo:          R(saldo),
             GastosIndirectos: R(c.GastosIndirectos),
-            GastosEnvio:      R(c.GastosEnvio));
+            GastosEnvio:      R(c.GastosEnvio),
+            DescuentoDistribuidor: R(subtotal - subtotalDist),
+            SubtotalDistribuidor:  R(subtotalDist),
+            DescuentoCliente:      R(subtotalDist - subtotalCli),
+            SubtotalCliente:       R(subtotalCli),
+            DescuentoExtra:        R(subtotalCli - subtotalDesc));
     }
 }

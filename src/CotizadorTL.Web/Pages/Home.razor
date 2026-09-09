@@ -69,6 +69,7 @@ else
             </div>
             <div class="campos">
                 <label>Descuento adicional % (admin)<input type="number" step="0.01" @bind="cot.DescuentoPct" disabled="@(!Auth.EsAdmin)" /></label>
+                <label>Descuento al cliente %<input type="number" min="0" max="100" step="0.01" @bind="cot.DescuentoClientePct" @bind:after="StateHasChanged" /></label>
                 <label>IVA %<input type="number" step="0.01" @bind="cot.IvaPct" disabled="@(!Auth.EsAdmin)" /></label>
                 @* El IVA del cliente lo edita cualquiera: es el que se le cobra a él,
                    no el de la zona del distribuidor. Solo afecta al PDF de cliente. *@
@@ -288,7 +289,20 @@ else
             @{ var t = MotorPrecios.Calcular(ArmarCotizacion()); }
             <table class="tot">
                 <tr><td>Subtotal público</td><td class="num">@Money(t.Subtotal)</td></tr>
-                <tr><td>Descuentos</td><td class="num desc">-@Money(t.DescuentoMonto)</td></tr>
+                @if (t.DescuentoDistribuidor > 0)
+                {
+                    <tr><td>Descuento distribuidor</td><td class="num desc">-@Money(t.DescuentoDistribuidor)</td></tr>
+                    <tr><td class="muted">Subtotal distribuidor</td><td class="num muted">@Money(t.SubtotalDistribuidor)</td></tr>
+                }
+                @if (t.DescuentoCliente > 0)
+                {
+                    <tr><td>Descuento cliente (@cot.DescuentoClientePct.ToString("0.#")%)</td><td class="num desc">-@Money(t.DescuentoCliente)</td></tr>
+                    <tr><td class="muted">Subtotal cliente</td><td class="num muted">@Money(t.SubtotalCliente)</td></tr>
+                }
+                @if (t.DescuentoExtra > 0)
+                {
+                    <tr><td>Descuento adicional (@cot.DescuentoPct.ToString("0.#")%)</td><td class="num desc">-@Money(t.DescuentoExtra)</td></tr>
+                }
                 <tr><td>Subtotal con descuento</td><td class="num">@Money(t.SubtotalDesc)</td></tr>
                 @if (t.GastosIndirectos > 0) { <tr><td>Gastos indirectos</td><td class="num">@Money(t.GastosIndirectos)</td></tr> }
                 @if (t.GastosEnvio > 0) { <tr><td>Gastos de envío</td><td class="num">@Money(t.GastosEnvio)</td></tr> }
@@ -300,7 +314,7 @@ else
             @if (mensaje is not null) { <div class="aviso @(mensajeOk ? "ok" : "err")">@mensaje</div> }
             <button class="btn-guardar" @onclick="Guardar" disabled="@guardando">@(guardando ? "Guardando…" : "Descargar PDF Distribuidor (guardar)")</button>
             <button class="btn-pdf" @onclick="() => DescargarPdf(false)">Descargar PDF Cliente</button>
-            <p class="muted small">El PDF Distribuidor lleva descuentos. El PDF Cliente va a precio público.</p>
+            <p class="muted small">El PDF Distribuidor lleva el desglose de los tres descuentos. El PDF Cliente parte del precio con descuento de distribuidor y solo muestra el suyo.</p>
         </section>
         </div>
     </div>
@@ -829,10 +843,27 @@ else
         else
         {
             // El PDF de cliente lleva SU IVA, no el de la zona del distribuidor.
-            var sin = new Cotizacion { IvaPct = cot.IvaClientePct, AnticipoPct = cot.AnticipoPct, DescuentoPct = 0m,
+            //
+            // Y su precio de partida NO es el público: es el que queda después del
+            // descuento del distribuidor. Sobre ese se le aplica el suyo. El
+            // adicional se queda afuera: es del distribuidor y el cliente no lo ve.
+            var paraCliente = new Cotizacion
+            {
+                IvaPct = cot.IvaClientePct, AnticipoPct = cot.AnticipoPct,
+                DescuentoPct = 0m,
+                DescuentoClientePct = cot.DescuentoClientePct,
                 GastosIndirectos = cot.GastosIndirectos, GastosEnvio = cot.GastosEnvio,
-                Lineas = cot.Lineas.Select(l => new LineaCotizacion { Cantidad = l.Cantidad, PrecioUnitario = l.PrecioUnitario, AplicaDescuento = false }).ToList() };
-            t = MotorPrecios.Calcular(sin);
+                Lineas = cot.Lineas.Select(l => new LineaCotizacion
+                {
+                    Cantidad = l.Cantidad,
+                    // el unitario que ve el cliente ya trae el descuento del distribuidor
+                    PrecioUnitario = l.AplicaDescuento
+                        ? l.PrecioUnitario * (1 - l.DescuentoPct / 100m)
+                        : l.PrecioUnitario,
+                    AplicaDescuento = l.AplicaDescuento,
+                }).ToList(),
+            };
+            t = MotorPrecios.Calcular(paraCliente);
         }
         bool hayInstalacion = lineas.Any(l => ProdDe(l)?.CodigoSap.StartsWith("INST-") == true);
         bool hayFlete = lineas.Any(l => ProdDe(l)?.CodigoSap.StartsWith("FLETE") == true);
@@ -847,6 +878,7 @@ else
             razonSocial = cot.RazonSocial, proyecto = cot.Proyecto, titulo = cot.Titulo, cliente = cot.Cliente,
             atencionA = cot.AtencionA, telefono = cot.Telefono, ciudad = cot.Ciudad, cotizadoPor = cot.CotizadoPor,
             comentarios = cot.Comentarios, descuentoPct = cot.DescuentoPct.ToString("0.#"),
+            descuentoClientePct = cot.DescuentoClientePct.ToString("0.#"),
             ivaPct = (conDescuento ? cot.IvaPct : cot.IvaClientePct).ToString("0.#"), anticipoPct = (double)cot.AnticipoPct,
             datosBancarios = cot.DatosBancarios, condicionesCliente = cot.CondicionesCliente, fabricacion = fabricacion,
             moneda = MonedaActual, mostrarDescuento = conDescuento, tipoPdf = conDescuento ? "DISTRIBUIDOR" : "CLIENTE",
@@ -859,11 +891,23 @@ else
             },
             totales = new { subtotal = (double)t.Subtotal, descuentoMonto = (double)t.DescuentoMonto, subtotalDesc = (double)t.SubtotalDesc,
                 gastosIndirectos = (double)t.GastosIndirectos, gastosEnvio = (double)t.GastosEnvio,
-                ivaMonto = (double)t.IvaMonto, granTotal = (double)t.GranTotal, anticipo = (double)t.Anticipo, saldo = (double)t.Saldo },
-            lineas = lineas.Where(l => l.ProductoId is not null).Select(l => new
+                ivaMonto = (double)t.IvaMonto, granTotal = (double)t.GranTotal, anticipo = (double)t.Anticipo, saldo = (double)t.Saldo,
+                descuentoDistribuidor = (double)t.DescuentoDistribuidor, subtotalDistribuidor = (double)t.SubtotalDistribuidor,
+                descuentoCliente = (double)t.DescuentoCliente, subtotalCliente = (double)t.SubtotalCliente,
+                descuentoExtra = (double)t.DescuentoExtra },
+            // En el PDF del cliente los renglones van con el precio que YA trae el
+            // descuento del distribuidor: si no, la tabla mostraría precio público y
+            // el subtotal saldría más bajo, sin cuadrar.
+            lineas = lineas.Where(l => l.ProductoId is not null).Select(l =>
             {
-                cantidad = (double)l.Cantidad, codigoSap = ProdDe(l)?.CodigoSap ?? "", descripcion = l.Descripcion,
-                color = ColorFinal(l), precioUnitario = (double)PrecioUnit(l), importe = (double)Importe(l),
+                var p = ProdDe(l);
+                decimal unit = PrecioUnit(l);
+                if (!conDescuento && (p?.AplicaDescuento ?? true)) unit *= 1 - l.DescuentoPct / 100m;
+                return new
+                {
+                    cantidad = (double)l.Cantidad, codigoSap = p?.CodigoSap ?? "", descripcion = l.Descripcion,
+                    color = ColorFinal(l), precioUnitario = (double)unit, importe = (double)(l.Cantidad * unit),
+                };
             }).ToArray(),
         };
         await JS.InvokeVoidAsync("cotizadorPdf.generar", dto);

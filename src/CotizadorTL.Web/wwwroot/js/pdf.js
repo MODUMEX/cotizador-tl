@@ -171,7 +171,9 @@
       // Si no cabe en lo que resta de la página, saltamos a una nueva para no cortarlo.
       const _t = d.totales || {};
       let filasTot = 3; // subtotal + iva + gran total
-      if (d.mostrarDescuento) filasTot += 2;
+      // el distribuidor ve la cascada completa: hasta 3 descuentos + 2 subtotales
+      if (d.mostrarDescuento) filasTot += 6;
+      else if (Number(_t.descuentoCliente) > 0) filasTot += 1;
       if (Number(_t.gastosIndirectos) > 0) filasTot += 1;
       if (Number(_t.gastosEnvio) > 0) filasTot += 1;
       const altoBloque = Math.max(filasTot * 15 + 20, 90) + 20;
@@ -195,10 +197,31 @@
         doc.text(money(v), W - M, fy, { align: "right" });
         fy += 15;
       };
-      rowT("SUBTOTAL PÚBLICO", tot.subtotal);
       if (d.mostrarDescuento) {
-        rowT("DESCUENTO DISTRIBUIDOR", tot.descuentoMonto, { color: ROJO });
+        // PDF del distribuidor: la cascada entera, para que se vea de dónde sale
+        // cada precio. Los tres descuentos se aplican uno sobre el anterior.
+        rowT("SUBTOTAL PÚBLICO", tot.subtotal);
+        if (Number(tot.descuentoDistribuidor) > 0) {
+          rowT("DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, { color: ROJO });
+          rowT("SUBTOTAL DISTRIBUIDOR", tot.subtotalDistribuidor);
+        }
+        if (Number(tot.descuentoCliente) > 0) {
+          rowT("DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, { color: ROJO });
+          rowT("SUBTOTAL CLIENTE", tot.subtotalCliente);
+        }
+        if (Number(tot.descuentoExtra) > 0) {
+          rowT("DESCUENTO ADICIONAL " + txt(d.descuentoPct) + "%", tot.descuentoExtra, { color: ROJO });
+        }
         rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
+      } else {
+        // PDF del cliente: su precio de partida ya trae el descuento del
+        // distribuidor, así que acá "SUBTOTAL" ya es ese. Solo se le muestra
+        // el descuento suyo; el adicional es del distribuidor y no se enseña.
+        rowT("SUBTOTAL", tot.subtotal);
+        if (Number(tot.descuentoCliente) > 0) {
+          rowT("DESCUENTO " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, { color: ROJO });
+          rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
+        }
       }
       if (Number(tot.gastosIndirectos) > 0) rowT("GASTOS INDIRECTOS", tot.gastosIndirectos);
       if (Number(tot.gastosEnvio) > 0) rowT("GASTOS DE ENVÍO", tot.gastosEnvio);
