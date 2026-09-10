@@ -204,4 +204,26 @@ public class MotorPreciosTests
         };
         Assert.Equal(500m, MotorPrecios.Calcular(c).SubtotalDesc);
     }
+
+    // ---- El segundo tramo se calcula para llegar al total establecido ----
+    [Fact]
+    public void SegundoTramo_LlegaAlTotalEstablecido()
+    {
+        // 11% establecido con 6% al cliente: el segundo tramo es 5.32%, no 5%
+        decimal segundo = MotorPrecios.SegundoTramo(11m, 6m);
+        Assert.Equal(5.32m, segundo);
+
+        // y la cascada da el 11% (con el redondeo a centésimas del porcentaje)
+        decimal efectivo = (1 - (1 - 6m / 100m) * (1 - segundo / 100m)) * 100m;
+        Assert.Equal(11m, Math.Round(efectivo, 2));
+    }
+
+    [Fact]
+    public void SegundoTramo_CasosBorde()
+    {
+        Assert.Equal(0m, MotorPrecios.SegundoTramo(0m, 5m));    // sin establecido
+        Assert.Equal(0m, MotorPrecios.SegundoTramo(11m, 11m));  // ya se dio todo
+        Assert.Equal(0m, MotorPrecios.SegundoTramo(11m, 20m));  // se pasó
+        Assert.Equal(11m, MotorPrecios.SegundoTramo(11m, 0m));  // nada al cliente
+    }
 }
