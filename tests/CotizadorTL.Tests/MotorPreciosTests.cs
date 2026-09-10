@@ -138,56 +138,59 @@ public class MotorPreciosTests
         Assert.Equal(5520.6402m * 0.66m, precio);
     }
 
-    // ---- Cadena de MODUMEX: preestablecido del distribuidor + adicional ----
+    // ---- COT 2457 real: 11% del distribuidor = 6% al cliente + 5% que se queda ----
     [Fact]
-    public void CadenaModumex_PreestablecidoYAdicional()
+    public void Cot2457_SeParteElDescuentoDelDistribuidor()
     {
-        // 100 · 20% preestablecido · 5% adicional  ->  100 x 0.80 x 0.95 = 76
+        // 110 lockers L-100-Q a 11 776,79 = 1 295 446,90 de subtotal público
+        LineaCotizacion Locker() => new() { Cantidad = 110m, PrecioUnitario = 11776.79m, DescuentoPct = 11m };
+
+        // lo que se FACTURA: público - 6% (al cliente) - 5% (que se queda)
+        var factura = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoClientePct = 6m, DescuentoPct = 5m,
+            Lineas = new() { Locker() },
+        };
+        var tf = MotorPrecios.Calcular(factura);
+        Assert.Equal(1295446.90m, tf.Subtotal);
+        Assert.Equal(1217720.09m, tf.SubtotalDistribuidor);   // tras el 6%
+        Assert.Equal(1156834.08m, tf.SubtotalDesc);           // tras el 5%
+
+        // lo que paga el CLIENTE: solo el 6%
+        var cliente = new Cotizacion
+        {
+            IvaPct = 0m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 110m, PrecioUnitario = 11776.79m, DescuentoPct = 6m } },
+        };
+        Assert.Equal(1217720.09m, MotorPrecios.Calcular(cliente).SubtotalDesc);
+
+        // el margen del distribuidor es el 5% que no le pasó
+        Assert.Equal(60886.01m, MotorPrecios.Calcular(cliente).SubtotalDesc - tf.SubtotalDesc);
+    }
+
+    // ---- El descuento al cliente REEMPLAZA al preestablecido, no se suma ----
+    [Fact]
+    public void DescuentoAlCliente_ReemplazaAlPreestablecido()
+    {
+        // el renglón trae 11% establecido; al poner 6% al cliente, manda el 6%
+        var c = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoClientePct = 6m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 11m } },
+        };
+        Assert.Equal(94m, MotorPrecios.Calcular(c).SubtotalDesc);
+    }
+
+    // ---- Sin partir (cliente en 0) todo se comporta como antes ----
+    [Fact]
+    public void SinPartir_MandaElPreestablecido()
+    {
         var c = new Cotizacion
         {
             IvaPct = 0m, DescuentoPct = 5m,
-            DescuentoClientePct = 10m,   // el del cliente NO entra en esta cadena
             Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
         };
-        var t = MotorPrecios.Calcular(c);
-        Assert.Equal(100m, t.Subtotal);
-        Assert.Equal(80m, t.SubtotalDistribuidor);
-        Assert.Equal(20m, t.DescuentoDistribuidor);
-        Assert.Equal(4m, t.DescuentoExtra);
-        Assert.Equal(76m, t.SubtotalDesc);
-    }
-
-    // ---- El descuento al cliente NO baja lo que el distribuidor le paga a Modumex ----
-    [Fact]
-    public void DescuentoAlCliente_NoTocaElCostoDelDistribuidor()
-    {
-        LineaCotizacion Linea() => new() { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m };
-        var sinCliente = new Cotizacion { IvaPct = 0m, DescuentoPct = 5m, Lineas = new() { Linea() } };
-        var conCliente = new Cotizacion { IvaPct = 0m, DescuentoPct = 5m, DescuentoClientePct = 30m, Lineas = new() { Linea() } };
-        Assert.Equal(MotorPrecios.Calcular(sinCliente).SubtotalDesc, MotorPrecios.Calcular(conCliente).SubtotalDesc);
-    }
-
-    // ---- Cadena del CLIENTE: lo que le da el distribuidor + el adicional de Modumex ----
-    // Se arma como la arma la pantalla: precio público, el del cliente en el renglón
-    // y el adicional de Modumex como global.
-    [Fact]
-    public void CadenaCliente_DejaMargenAlDistribuidor()
-    {
-        var alCliente = new Cotizacion
-        {
-            IvaPct = 0m, DescuentoPct = 5m,   // adicional de Modumex
-            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 10m } },
-        };
-        // 100 x 0.90 x 0.95 = 85.50
-        Assert.Equal(85.50m, MotorPrecios.Calcular(alCliente).SubtotalDesc);
-
-        // y le queda margen: cobra 85.50 y paga 76.00
-        var aModumex = new Cotizacion
-        {
-            IvaPct = 0m, DescuentoPct = 5m,
-            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
-        };
-        Assert.True(MotorPrecios.Calcular(alCliente).SubtotalDesc > MotorPrecios.Calcular(aModumex).SubtotalDesc);
+        Assert.Equal(76m, MotorPrecios.Calcular(c).SubtotalDesc);   // 100 x 0.80 x 0.95
     }
 
     // ---- Servicios y flete no reciben descuento en ninguna cadena ----

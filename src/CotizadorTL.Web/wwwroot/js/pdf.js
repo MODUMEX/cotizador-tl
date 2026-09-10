@@ -197,25 +197,32 @@
         doc.text(money(v), W - M, fy, { align: "right" });
         fy += 15;
       };
+      var pctCli = Number(String(d.descuentoClientePct || "0").replace(",", "."));
       if (d.mostrarDescuento) {
-        // PDF del distribuidor: la cascada entera, para que se vea de dónde sale
-        // cada precio. Los tres descuentos se aplican uno sobre el anterior.
+        // Lo que se FACTURA: público, el descuento que se le pasa al cliente y
+        // después el que el distribuidor se queda. Los dos en cascada.
         rowT("SUBTOTAL PÚBLICO", tot.subtotal);
         if (Number(tot.descuentoDistribuidor) > 0) {
-          rowT("DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, { color: ROJO });
-          rowT("SUBTOTAL DISTRIBUIDOR", tot.subtotalDistribuidor);
+          // si el descuento se partió, el primero es el del cliente; si no, es el
+          // preestablecido del distribuidor, como fue siempre
+          rowT(
+            pctCli > 0 ? "DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%" : "DESCUENTO DISTRIBUIDOR",
+            tot.descuentoDistribuidor,
+            { color: ROJO },
+          );
+          rowT("SUBTOTAL DESCUENTO", tot.subtotalDistribuidor);
         }
         if (Number(tot.descuentoExtra) > 0) {
           rowT("DESCUENTO ADICIONAL " + txt(d.descuentoPct) + "%", tot.descuentoExtra, { color: ROJO });
+          rowT("SUBTOTAL DESCUENTO", tot.subtotalDesc);
+        } else {
+          rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
         }
-        rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
       } else {
-        // PDF del cliente: su cadena arranca en el precio público y lleva lo que
-        // el distribuidor le da más el adicional de Modumex. Se muestra un solo
-        // renglón de descuento para que la resta cierre a la vista.
-        rowT("SUBTOTAL", tot.subtotal);
+        // Al cliente le sale SOLO el descuento que el distribuidor le pasa.
+        rowT("SUBTOTAL PÚBLICO", tot.subtotal);
         if (Number(tot.descuentoMonto) > 0) {
-          rowT("DESCUENTO", tot.descuentoMonto, { color: ROJO });
+          rowT("DESCUENTO " + txt(d.descuentoClientePct) + "%", tot.descuentoMonto, { color: ROJO });
           rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
         }
       }

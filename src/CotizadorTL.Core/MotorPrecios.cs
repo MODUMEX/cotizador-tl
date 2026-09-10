@@ -8,13 +8,18 @@ namespace CotizadorTL.Core;
 ///   se trabaja en PRECISIÓN COMPLETA y se redondea SOLO para mostrar; el GRAN TOTAL
 ///   sale del subtotal-con-descuento sin redondear, por eso casa al centavo con los PDFs.
 ///
-/// Interacción de descuentos. Son DOS cadenas separadas, no una:
+/// Interacción de descuentos. El descuento del distribuidor se PARTE en dos:
+/// lo que le pasa a su cliente y lo que se queda él. Los dos van en cascada.
 ///
-///   Modumex ← distribuidor:  público × (1−preestablecido) × (1−adicional Modumex)
-///   distribuidor ← cliente:  se calcula aparte, en el PDF del cliente
+///   público → (1−al cliente) → (1−adicional) = lo que se factura
+///   público → (1−al cliente)                 = lo que paga el cliente
 ///
-/// El descuento que el distribuidor le da a SU cliente sale de su propio
-/// margen: no baja lo que él le paga a Modumex, así que NO entra acá.
+/// Ejemplo real: 11 % del distribuidor = 6 % que le pasa al cliente + 5 % que
+/// se queda. Sobre 1 295 446,90 factura 1 156 834,08 y le cobra al cliente
+/// 1 217 720,09; la diferencia, 60 886, es su margen.
+///
+/// Si NO se parte (descuento al cliente en 0), manda el preestablecido del
+/// renglón y todo se comporta como antes.
 ///
 ///   · Líneas con AplicaDescuento=false (Servicios/Flete) NO reciben ningún descuento.
 ///   · A las demás se les aplica el descuento de renglón y luego el global, de forma
@@ -54,6 +59,15 @@ public static class MotorPrecios
         => NetoLinea(l, descuentoGlobalPct, 0m);
 
     /// <summary>
+    /// El primer descuento de la cascada. Si se puso uno al cliente, ese manda y
+    /// REEMPLAZA al preestablecido del renglón: los dos son la misma plata,
+    /// partida en la porción que se le pasa al cliente y la que se queda el
+    /// distribuidor. Aplicarlos juntos la contaría dos veces.
+    /// </summary>
+    public static decimal PrimerDescuento(LineaCotizacion l, decimal descuentoClientePct)
+        => descuentoClientePct > 0m ? descuentoClientePct : l.DescuentoPct;
+
+    /// <summary>
     /// Neto de un renglón con la cascada completa: descuento del distribuidor
     /// (el del renglón), después el del cliente y por último el adicional.
     ///
@@ -64,8 +78,7 @@ public static class MotorPrecios
     {
         decimal bruto = SubtotalLinea(l);
         if (!l.AplicaDescuento) return bruto;
-        decimal factor = (1 - l.DescuentoPct / 100m)
-                       * (1 - descuentoClientePct / 100m)
+        decimal factor = (1 - PrimerDescuento(l, descuentoClientePct) / 100m)
                        * (1 - descuentoGlobalPct / 100m);
         return bruto * factor;
     }
@@ -79,8 +92,8 @@ public static class MotorPrecios
         foreach (var l in c.Lineas)
         {
             subtotal     += SubtotalLinea(l);
-            subtotalDist += NetoLinea(l, 0m);
-            subtotalDesc += NetoLinea(l, c.DescuentoPct);
+            subtotalDist += NetoLinea(l, 0m, c.DescuentoClientePct);
+            subtotalDesc += NetoLinea(l, c.DescuentoPct, c.DescuentoClientePct);
         }
         decimal descuentoMonto = subtotal - subtotalDesc;
         // Gastos indirectos y de envío se suman ANTES del IVA (no reciben descuento).
