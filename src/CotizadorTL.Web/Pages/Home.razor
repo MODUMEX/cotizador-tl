@@ -70,15 +70,7 @@ else
             <div class="campos">
                 <label>Descuento adicional % (admin)<input type="number" step="0.01" @bind="cot.DescuentoPct" disabled="@(!Auth.EsAdmin)" /></label>
                 <label>Descuento al cliente %<input type="number" min="0" max="100" step="0.01" @bind="cot.DescuentoClientePct" @bind:after="StateHasChanged" /></label>
-                @if (cot.DescuentoClientePct > 0)
-                {
-                    @* Las dos porciones van EN CASCADA, una sobre el resultado de la
-                       otra. Por eso 6 % y 5 % dan 10,7 % y no 11 %: así se aplican. *@
-                    <span class="mini muted">
-                        @cot.DescuentoClientePct.ToString("0.##")% al cliente y luego @cot.DescuentoPct.ToString("0.##")% =
-                        @Efectivo.ToString("0.##")% efectivo
-                    </span>
-                }
+
                 <label>IVA %<input type="number" step="0.01" @bind="cot.IvaPct" disabled="@(!Auth.EsAdmin)" /></label>
                 @* El IVA del cliente lo edita cualquiera: es el que se le cobra a él,
                    no el de la zona del distribuidor. Solo afecta al PDF de cliente. *@
@@ -303,9 +295,14 @@ else
                     <tr><td>Descuento distribuidor</td><td class="num desc">-@Money(t.DescuentoDistribuidor)</td></tr>
                     <tr><td class="muted">Subtotal distribuidor</td><td class="num muted">@Money(t.SubtotalDistribuidor)</td></tr>
                 }
+                @if (t.DescuentoCliente > 0)
+                {
+                    <tr><td>Descuento cliente (@cot.DescuentoClientePct.ToString("0.#")%)</td><td class="num desc">-@Money(t.DescuentoCliente)</td></tr>
+                    <tr><td class="muted">Subtotal cliente</td><td class="num muted">@Money(t.SubtotalCliente)</td></tr>
+                }
                 @if (t.DescuentoExtra > 0)
                 {
-                    <tr><td>Descuento adicional (@cot.DescuentoPct.ToString("0.#")%)</td><td class="num desc">-@Money(t.DescuentoExtra)</td></tr>
+                    <tr><td>Descuento extra (@cot.DescuentoPct.ToString("0.#")%)</td><td class="num desc">-@Money(t.DescuentoExtra)</td></tr>
                 }
                 <tr><td>Subtotal con descuento</td><td class="num">@Money(t.SubtotalDesc)</td></tr>
                 @if (t.GastosIndirectos > 0) { <tr><td>Gastos indirectos</td><td class="num">@Money(t.GastosIndirectos)</td></tr> }
@@ -318,7 +315,7 @@ else
             @if (mensaje is not null) { <div class="aviso @(mensajeOk ? "ok" : "err")">@mensaje</div> }
             <button class="btn-guardar" @onclick="Guardar" disabled="@guardando">@(guardando ? "Guardando…" : "Descargar PDF Distribuidor (guardar)")</button>
             <button class="btn-pdf" @onclick="() => DescargarPdf(false)">Descargar PDF Cliente</button>
-            <p class="muted small">El descuento del distribuidor se parte en dos: lo que le pasa al cliente y lo que se queda. El PDF Distribuidor lleva los dos en cascada —es lo que se factura—; el PDF Cliente, solo el suyo.</p>
+            <p class="muted small">Tres descuentos en cascada: distribuidor, cliente y extra. El PDF Distribuidor lleva los tres; el PDF Cliente arranca del subtotal con el del distribuidor y solo muestra el del cliente.</p>
         </section>
         </div>
     </div>
@@ -542,21 +539,6 @@ else
 
     private decimal Importe(LineaUI l) => l.Cantidad * PrecioUnit(l);
 
-    /// <summary>
-    /// El descuento que el distribuidor tiene establecido, para poder comparar.
-    /// Es la SUMA de lo que le pasa al cliente y lo que se queda, así que sirve
-    /// de control: si la partición no lo alcanza, alguien está dejando plata.
-    /// Se toma del renglón con el descuento más alto, que es el del producto.
-    /// </summary>
-    /// <summary>El descuento efectivo: las dos porciones aplicadas en cascada.</summary>
-    private decimal Efectivo =>
-        (1 - (1 - cot.DescuentoClientePct / 100m) * (1 - cot.DescuentoPct / 100m)) * 100m;
-
-    private decimal DescuentoEstablecido =>
-        distribuidorId == 0 ? 0m
-        : lineas.Where(l => l.ProductoId is not null && (ProdDe(l)?.AplicaDescuento ?? true))
-                .Select(l => Catalogo.DescuentoFamilia(distribuidorId, l.FamiliaCodigo))
-                .DefaultIfEmpty(0m).Max();
 
     // ---------- eventos ----------
     private void AgregarLinea() => lineas.Add(new LineaUI());
@@ -864,18 +846,23 @@ else
         {
             // El PDF de cliente lleva SU IVA, no el de la zona del distribuidor.
             //
-            // Al cliente le llega SOLO la porción que el distribuidor le pasa: el
-            // resto del descuento se lo queda él y es su margen. Sin adicional.
+            // El PDF de cliente lleva SU IVA y arranca del subtotal que ya trae el
+            // descuento del distribuidor: ese es su precio de lista. Sobre eso se
+            // le aplica el suyo, que es el único descuento que ve. El extra no le
+            // llega: se lo queda el distribuidor.
             var paraCliente = new Cotizacion
             {
                 IvaPct = cot.IvaClientePct, AnticipoPct = cot.AnticipoPct,
                 DescuentoPct = 0m,
+                DescuentoClientePct = cot.DescuentoClientePct,
                 GastosIndirectos = cot.GastosIndirectos, GastosEnvio = cot.GastosEnvio,
                 Lineas = cot.Lineas.Select(l => new LineaCotizacion
                 {
                     Cantidad = l.Cantidad,
-                    PrecioUnitario = l.PrecioUnitario,   // público
-                    DescuentoPct = l.AplicaDescuento ? cot.DescuentoClientePct : 0m,
+                    // el unitario del cliente ya trae el descuento del distribuidor
+                    PrecioUnitario = l.AplicaDescuento
+                        ? l.PrecioUnitario * (1 - l.DescuentoPct / 100m)
+                        : l.PrecioUnitario,
                     AplicaDescuento = l.AplicaDescuento,
                 }).ToList(),
             };
@@ -909,11 +896,21 @@ else
                 gastosIndirectos = (double)t.GastosIndirectos, gastosEnvio = (double)t.GastosEnvio,
                 ivaMonto = (double)t.IvaMonto, granTotal = (double)t.GranTotal, anticipo = (double)t.Anticipo, saldo = (double)t.Saldo,
                 descuentoDistribuidor = (double)t.DescuentoDistribuidor, subtotalDistribuidor = (double)t.SubtotalDistribuidor,
+                descuentoCliente = (double)t.DescuentoCliente, subtotalCliente = (double)t.SubtotalCliente,
                 descuentoExtra = (double)t.DescuentoExtra },
-            lineas = lineas.Where(l => l.ProductoId is not null).Select(l => new
+            // En el PDF del cliente los renglones llevan el precio que ya trae el
+            // descuento del distribuidor: si fueran al público, la tabla mostraría
+            // unos precios y el subtotal otro, sin cuadrar.
+            lineas = lineas.Where(l => l.ProductoId is not null).Select(l =>
             {
-                cantidad = (double)l.Cantidad, codigoSap = ProdDe(l)?.CodigoSap ?? "", descripcion = l.Descripcion,
-                color = ColorFinal(l), precioUnitario = (double)PrecioUnit(l), importe = (double)Importe(l),
+                var p = ProdDe(l);
+                decimal unit = PrecioUnit(l);
+                if (!conDescuento && (p?.AplicaDescuento ?? true)) unit *= 1 - l.DescuentoPct / 100m;
+                return new
+                {
+                    cantidad = (double)l.Cantidad, codigoSap = p?.CodigoSap ?? "", descripcion = l.Descripcion,
+                    color = ColorFinal(l), precioUnitario = (double)unit, importe = (double)(l.Cantidad * unit),
+                };
             }).ToArray(),
         };
         await JS.InvokeVoidAsync("cotizadorPdf.generar", dto);

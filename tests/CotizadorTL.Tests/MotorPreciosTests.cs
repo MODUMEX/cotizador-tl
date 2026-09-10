@@ -138,83 +138,74 @@ public class MotorPreciosTests
         Assert.Equal(5520.6402m * 0.66m, precio);
     }
 
-    // ---- COT 2457 real: 11% del distribuidor = 6% al cliente + 5% que se queda ----
+    // ===================================================================
+    // Los TRES descuentos, siempre en este orden y en cascada:
+    //   1) preestablecido del distribuidor  2) del cliente  3) extra
+    // Cada uno sobre lo que dejo el anterior, nunca sobre el publico.
+    // ===================================================================
     [Fact]
-    public void Cot2457_SeParteElDescuentoDelDistribuidor()
+    public void TresDescuentos_EnCascadaYEnOrden()
     {
-        // 110 lockers L-100-Q a 11 776,79 = 1 295 446,90 de subtotal público
-        LineaCotizacion Locker() => new() { Cantidad = 110m, PrecioUnitario = 11776.79m, DescuentoPct = 11m };
-
-        // lo que se FACTURA: público - 6% (al cliente) - 5% (que se queda)
-        var factura = new Cotizacion
-        {
-            IvaPct = 0m, DescuentoClientePct = 6m, DescuentoPct = 5m,
-            Lineas = new() { Locker() },
-        };
-        var tf = MotorPrecios.Calcular(factura);
-        Assert.Equal(1295446.90m, tf.Subtotal);
-        Assert.Equal(1217720.09m, tf.SubtotalDistribuidor);   // tras el 6%
-        Assert.Equal(1156834.08m, tf.SubtotalDesc);           // tras el 5%
-
-        // lo que paga el CLIENTE: solo el 6%
-        var cliente = new Cotizacion
-        {
-            IvaPct = 0m,
-            Lineas = new() { new LineaCotizacion { Cantidad = 110m, PrecioUnitario = 11776.79m, DescuentoPct = 6m } },
-        };
-        Assert.Equal(1217720.09m, MotorPrecios.Calcular(cliente).SubtotalDesc);
-
-        // el margen del distribuidor es el 5% que no le pasó
-        Assert.Equal(60886.01m, MotorPrecios.Calcular(cliente).SubtotalDesc - tf.SubtotalDesc);
-    }
-
-    // ---- El descuento al cliente REEMPLAZA al preestablecido, no se suma ----
-    [Fact]
-    public void DescuentoAlCliente_ReemplazaAlPreestablecido()
-    {
-        // el renglón trae 11% establecido; al poner 6% al cliente, manda el 6%
+        // 100 · 20% distribuidor · 10% cliente · 5% extra
         var c = new Cotizacion
         {
-            IvaPct = 0m, DescuentoClientePct = 6m,
-            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 11m } },
+            IvaPct = 0m, DescuentoClientePct = 10m, DescuentoPct = 5m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
         };
-        Assert.Equal(94m, MotorPrecios.Calcular(c).SubtotalDesc);
+        var t = MotorPrecios.Calcular(c);
+
+        Assert.Equal(100m, t.Subtotal);
+        Assert.Equal(20m, t.DescuentoDistribuidor);
+        Assert.Equal(80m, t.SubtotalDistribuidor);   // 1) tras el distribuidor
+        Assert.Equal(8m, t.DescuentoCliente);        //    10% de 80
+        Assert.Equal(72m, t.SubtotalCliente);        // 2) lo que paga el CLIENTE
+        Assert.Equal(3.60m, t.DescuentoExtra);       //    5% de 72
+        Assert.Equal(68.40m, t.SubtotalDesc);        // 3) lo que paga el DISTRIBUIDOR
+
+        // el desglose cierra contra el descuento total
+        Assert.Equal(t.Subtotal - t.SubtotalDesc,
+                     t.DescuentoDistribuidor + t.DescuentoCliente + t.DescuentoExtra);
     }
 
-    // ---- Sin partir (cliente en 0) todo se comporta como antes ----
+    // ---- El cliente paga MAS que el distribuidor: el extra no le llega ----
     [Fact]
-    public void SinPartir_MandaElPreestablecido()
+    public void ElExtra_NoLlegaAlCliente()
+    {
+        var c = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoClientePct = 10m, DescuentoPct = 5m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
+        };
+        var t = MotorPrecios.Calcular(c);
+        Assert.True(t.SubtotalCliente > t.SubtotalDesc);
+        Assert.Equal(3.60m, t.SubtotalCliente - t.SubtotalDesc);   // el margen es el extra
+    }
+
+    // ---- Sin descuento al cliente, la cadena sigue siendo dist + extra ----
+    [Fact]
+    public void SinDescuentoAlCliente_QuedanLosDosDeSiempre()
     {
         var c = new Cotizacion
         {
             IvaPct = 0m, DescuentoPct = 5m,
             Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
         };
-        Assert.Equal(76m, MotorPrecios.Calcular(c).SubtotalDesc);   // 100 x 0.80 x 0.95
+        var t = MotorPrecios.Calcular(c);
+        Assert.Equal(0m, t.DescuentoCliente);
+        Assert.Equal(76m, t.SubtotalDesc);   // 100 x 0.80 x 0.95
     }
 
-    // ---- Servicios y flete no reciben descuento en ninguna cadena ----
+    // ---- Servicios y flete no reciben ninguno de los tres ----
     [Fact]
     public void SinDescuento_NoRecibeNada()
     {
         var c = new Cotizacion
         {
-            IvaPct = 0m, DescuentoPct = 5m,
+            IvaPct = 0m, DescuentoClientePct = 10m, DescuentoPct = 5m,
             Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 500m, DescuentoPct = 20m, AplicaDescuento = false } },
         };
-        Assert.Equal(500m, MotorPrecios.Calcular(c).SubtotalDesc);
-    }
-
-    // ---- Las dos porciones van en CASCADA: 6% y 5% dan 10,7%, no 11% ----
-    [Fact]
-    public void LasDosPorciones_VanEnCascada()
-    {
-        var c = new Cotizacion
-        {
-            IvaPct = 0m, DescuentoClientePct = 6m, DescuentoPct = 5m,
-            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 11m } },
-        };
-        // 100 x 0.94 x 0.95 = 89.30  ->  10,70% efectivo, NO 89.00 (que seria el 11% de una vez)
-        Assert.Equal(89.30m, MotorPrecios.Calcular(c).SubtotalDesc);
+        var t = MotorPrecios.Calcular(c);
+        Assert.Equal(500m, t.SubtotalDesc);
+        Assert.Equal(0m, t.DescuentoCliente);
     }
 }

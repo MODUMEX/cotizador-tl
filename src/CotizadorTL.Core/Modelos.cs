@@ -111,9 +111,13 @@ public sealed record Totales(
     decimal GastosIndirectos = 0m,  // se suman antes del IVA
     decimal GastosEnvio = 0m,
     // ---- el desglose de la cascada, para el PDF del distribuidor ----
-    /// <summary>Lo que se descontó por el distribuidor (descuento de renglón).</summary>
+    /// <summary>Lo que se descontó por el preestablecido del distribuidor.</summary>
     decimal DescuentoDistribuidor = 0m,
-    /// <summary>Subtotal después del descuento del distribuidor. Es la BASE del cliente.</summary>
+    /// <summary>Subtotal tras el descuento del distribuidor. Es la BASE del cliente.</summary>
     decimal SubtotalDistribuidor = 0m,
-    /// <summary>Lo que se descontó por el adicional de Modumex.</summary>
+    /// <summary>Lo que se le descontó al cliente, sobre el subtotal de arriba.</summary>
+    decimal DescuentoCliente = 0m,
+    /// <summary>Subtotal tras el descuento del cliente. Es lo que el cliente paga.</summary>
+    decimal SubtotalCliente = 0m,
+    /// <summary>Lo que se descontó por el extra, que el cliente NO ve.</summary>
     decimal DescuentoExtra = 0m);

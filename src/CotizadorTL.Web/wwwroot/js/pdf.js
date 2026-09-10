@@ -172,7 +172,7 @@
       const _t = d.totales || {};
       let filasTot = 3; // subtotal + iva + gran total
       // el distribuidor ve la cascada completa: hasta 3 descuentos + 2 subtotales
-      if (d.mostrarDescuento) filasTot += 4;
+      if (d.mostrarDescuento) filasTot += 7;
       else if (Number(_t.descuentoMonto) > 0) filasTot += 2;
       if (Number(_t.gastosIndirectos) > 0) filasTot += 1;
       if (Number(_t.gastosEnvio) > 0) filasTot += 1;
@@ -197,30 +197,26 @@
         doc.text(money(v), W - M, fy, { align: "right" });
         fy += 15;
       };
-      var pctCli = Number(String(d.descuentoClientePct || "0").replace(",", "."));
       if (d.mostrarDescuento) {
-        // Lo que se FACTURA: público, el descuento que se le pasa al cliente y
-        // después el que el distribuidor se queda. Los dos en cascada.
+        // PDF del DISTRIBUIDOR: los tres en cascada, uno sobre lo que dejó el
+        // anterior, con el subtotal intermedio de cada paso.
         rowT("SUBTOTAL PÚBLICO", tot.subtotal);
         if (Number(tot.descuentoDistribuidor) > 0) {
-          // si el descuento se partió, el primero es el del cliente; si no, es el
-          // preestablecido del distribuidor, como fue siempre
-          rowT(
-            pctCli > 0 ? "DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%" : "DESCUENTO DISTRIBUIDOR",
-            tot.descuentoDistribuidor,
-            { color: ROJO },
-          );
+          rowT("DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, { color: ROJO });
           rowT("SUBTOTAL DESCUENTO", tot.subtotalDistribuidor);
         }
-        if (Number(tot.descuentoExtra) > 0) {
-          rowT("DESCUENTO ADICIONAL " + txt(d.descuentoPct) + "%", tot.descuentoExtra, { color: ROJO });
-          rowT("SUBTOTAL DESCUENTO", tot.subtotalDesc);
-        } else {
-          rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
+        if (Number(tot.descuentoCliente) > 0) {
+          rowT("DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, { color: ROJO });
+          rowT("SUBTOTAL DESCUENTO", tot.subtotalCliente);
         }
+        if (Number(tot.descuentoExtra) > 0) {
+          rowT("DESCUENTO EXTRA " + txt(d.descuentoPct) + "%", tot.descuentoExtra, { color: ROJO });
+        }
+        rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
       } else {
-        // Al cliente le sale SOLO el descuento que el distribuidor le pasa.
-        rowT("SUBTOTAL PÚBLICO", tot.subtotal);
+        // PDF del CLIENTE: el subtotal ya trae el descuento del distribuidor —es
+        // su precio de lista— y encima va solo el suyo. El extra no aparece.
+        rowT("SUBTOTAL", tot.subtotal);
         if (Number(tot.descuentoMonto) > 0) {
           rowT("DESCUENTO " + txt(d.descuentoClientePct) + "%", tot.descuentoMonto, { color: ROJO });
           rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
