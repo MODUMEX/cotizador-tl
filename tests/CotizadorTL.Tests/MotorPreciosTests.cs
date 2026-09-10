@@ -205,25 +205,16 @@ public class MotorPreciosTests
         Assert.Equal(500m, MotorPrecios.Calcular(c).SubtotalDesc);
     }
 
-    // ---- El segundo tramo se calcula para llegar al total establecido ----
+    // ---- Las dos porciones van en CASCADA: 6% y 5% dan 10,7%, no 11% ----
     [Fact]
-    public void SegundoTramo_LlegaAlTotalEstablecido()
+    public void LasDosPorciones_VanEnCascada()
     {
-        // 11% establecido con 6% al cliente: el segundo tramo es 5.32%, no 5%
-        decimal segundo = MotorPrecios.SegundoTramo(11m, 6m);
-        Assert.Equal(5.32m, segundo);
-
-        // y la cascada da el 11% (con el redondeo a centésimas del porcentaje)
-        decimal efectivo = (1 - (1 - 6m / 100m) * (1 - segundo / 100m)) * 100m;
-        Assert.Equal(11m, Math.Round(efectivo, 2));
-    }
-
-    [Fact]
-    public void SegundoTramo_CasosBorde()
-    {
-        Assert.Equal(0m, MotorPrecios.SegundoTramo(0m, 5m));    // sin establecido
-        Assert.Equal(0m, MotorPrecios.SegundoTramo(11m, 11m));  // ya se dio todo
-        Assert.Equal(0m, MotorPrecios.SegundoTramo(11m, 20m));  // se pasó
-        Assert.Equal(11m, MotorPrecios.SegundoTramo(11m, 0m));  // nada al cliente
+        var c = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoClientePct = 6m, DescuentoPct = 5m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 11m } },
+        };
+        // 100 x 0.94 x 0.95 = 89.30  ->  10,70% efectivo, NO 89.00 (que seria el 11% de una vez)
+        Assert.Equal(89.30m, MotorPrecios.Calcular(c).SubtotalDesc);
     }
 }

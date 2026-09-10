@@ -14,8 +14,9 @@ namespace CotizadorTL.Core;
 ///   público → (1−al cliente) → (1−adicional) = lo que se factura
 ///   público → (1−al cliente)                 = lo que paga el cliente
 ///
-/// Ejemplo real: 11 % del distribuidor = 6 % que le pasa al cliente + 5 % que
-/// se queda. Sobre 1 295 446,90 factura 1 156 834,08 y le cobra al cliente
+/// Ejemplo real: al 11 % del distribuidor se lo nombra 6 % que le pasa al
+/// cliente + 5 % que se queda, pero se aplican EN CASCADA: 10,7 % efectivo,
+/// no 11 %. Sobre 1 295 446,90 factura 1 156 834,08 y le cobra al cliente
 /// 1 217 720,09; la diferencia, 60 886, es su margen.
 ///
 /// Si NO se parte (descuento al cliente en 0), manda el preestablecido del
@@ -51,23 +52,6 @@ public static class MotorPrecios
         return precio;
     }
 
-    /// <summary>
-    /// El segundo tramo del descuento para que la cascada dé EXACTAMENTE el total
-    /// establecido. Sumar los porcentajes no alcanza: 6 % y 5 % en cascada dan
-    /// 10,70 %, no 11 %. Para llegar al 11 % el segundo tramo es 5,32 %.
-    ///
-    ///   (1 − primero) × (1 − segundo) = 1 − total
-    /// </summary>
-    public static decimal SegundoTramo(decimal totalPct, decimal primeroPct)
-    {
-        if (totalPct <= 0m) return 0m;
-        if (primeroPct >= 100m) return 0m;
-        // si el primer tramo ya se pasó del total, no queda nada por descontar
-        if (primeroPct >= totalPct) return 0m;
-        decimal resto = (1 - totalPct / 100m) / (1 - primeroPct / 100m);
-        decimal pct = (1 - resto) * 100m;
-        return Math.Round(Math.Clamp(pct, 0m, 100m), 2, MidpointRounding.AwayFromZero);
-    }
 
     /// <summary>Subtotal bruto de un renglón (cantidad * precio unitario), sin descuento.</summary>
     public static decimal SubtotalLinea(LineaCotizacion l) => l.Cantidad * l.PrecioUnitario;

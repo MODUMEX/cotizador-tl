@@ -69,23 +69,14 @@ else
             </div>
             <div class="campos">
                 <label>Descuento adicional % (admin)<input type="number" step="0.01" @bind="cot.DescuentoPct" disabled="@(!Auth.EsAdmin)" /></label>
-                <label>Descuento al cliente %<input type="number" min="0" max="100" step="0.01" @bind="cot.DescuentoClientePct" @bind:after="AjustarAdicional" /></label>
+                <label>Descuento al cliente %<input type="number" min="0" max="100" step="0.01" @bind="cot.DescuentoClientePct" @bind:after="StateHasChanged" /></label>
                 @if (cot.DescuentoClientePct > 0)
                 {
-                    @* El descuento del distribuidor se PARTE: lo que le pasa al cliente
-                       y lo que se queda. Se muestra el efectivo para poder verificar
-                       que la cascada da exactamente el establecido. *@
+                    @* Las dos porciones van EN CASCADA, una sobre el resultado de la
+                       otra. Por eso 6 % y 5 % dan 10,7 % y no 11 %: así se aplican. *@
                     <span class="mini muted">
-                        En cascada: @Efectivo.ToString("0.##")% de descuento total
-                        @if (DescuentoEstablecido > 0)
-                        {
-                            <text> · establecido @DescuentoEstablecido.ToString("0.##")%</text>
-                            @if (Math.Abs(Efectivo - DescuentoEstablecido) > 0.005m)
-                            {
-                                <text> · </text>
-                                <a href="#" @onclick="AjustarAdicional" @onclick:preventDefault>ajustar al establecido</a>
-                            }
-                        }
+                        @cot.DescuentoClientePct.ToString("0.##")% al cliente y luego @cot.DescuentoPct.ToString("0.##")% =
+                        @Efectivo.ToString("0.##")% efectivo
                     </span>
                 }
                 <label>IVA %<input type="number" step="0.01" @bind="cot.IvaPct" disabled="@(!Auth.EsAdmin)" /></label>
@@ -557,26 +548,9 @@ else
     /// de control: si la partición no lo alcanza, alguien está dejando plata.
     /// Se toma del renglón con el descuento más alto, que es el del producto.
     /// </summary>
-    /// <summary>El descuento total que de verdad se está dando, con la cascada.</summary>
+    /// <summary>El descuento efectivo: las dos porciones aplicadas en cascada.</summary>
     private decimal Efectivo =>
         (1 - (1 - cot.DescuentoClientePct / 100m) * (1 - cot.DescuentoPct / 100m)) * 100m;
-
-    /// <summary>
-    /// Pone el adicional en el valor exacto para que la cascada dé el descuento
-    /// que el distribuidor tiene establecido. Sumar los porcentajes no alcanza:
-    /// con 11 % establecido y 6 % al cliente, el adicional es 5,32 % y no 5 %.
-    ///
-    /// Corre al cambiar el descuento al cliente, que es el que se elige a mano;
-    /// el adicional queda como consecuencia. Si después se edita el adicional,
-    /// ese valor manda hasta que se vuelva a tocar el del cliente.
-    /// </summary>
-    private void AjustarAdicional()
-    {
-        decimal total = DescuentoEstablecido;
-        if (total > 0m && cot.DescuentoClientePct > 0m)
-            cot.DescuentoPct = MotorPrecios.SegundoTramo(total, cot.DescuentoClientePct);
-        StateHasChanged();
-    }
 
     private decimal DescuentoEstablecido =>
         distribuidorId == 0 ? 0m
