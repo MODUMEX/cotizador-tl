@@ -138,61 +138,67 @@ public class MotorPreciosTests
         Assert.Equal(5520.6402m * 0.66m, precio);
     }
 
-    // ---- Los TRES descuentos en cascada: distribuidor, cliente y adicional ----
+    // ---- Cadena de MODUMEX: preestablecido del distribuidor + adicional ----
     [Fact]
-    public void TresDescuentos_CascadaYDesglose()
+    public void CadenaModumex_PreestablecidoYAdicional()
     {
-        // 100 de producto: 20% distribuidor, 10% cliente, 5% adicional
+        // 100 · 20% preestablecido · 5% adicional  ->  100 x 0.80 x 0.95 = 76
         var c = new Cotizacion
         {
-            IvaPct = 0m,
-            DescuentoPct = 5m,           // el adicional
-            DescuentoClientePct = 10m,   // el del cliente
+            IvaPct = 0m, DescuentoPct = 5m,
+            DescuentoClientePct = 10m,   // el del cliente NO entra en esta cadena
             Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
         };
         var t = MotorPrecios.Calcular(c);
-
-        // la cascada: 100 -> 80 -> 72 -> 68.40
         Assert.Equal(100m, t.Subtotal);
         Assert.Equal(80m, t.SubtotalDistribuidor);
         Assert.Equal(20m, t.DescuentoDistribuidor);
-        Assert.Equal(72m, t.SubtotalCliente);
-        Assert.Equal(8m, t.DescuentoCliente);
-        Assert.Equal(3.60m, t.DescuentoExtra);
-        Assert.Equal(68.40m, t.SubtotalDesc);
-        // y el desglose cierra contra el descuento total
-        Assert.Equal(t.Subtotal - t.SubtotalDesc, t.DescuentoDistribuidor + t.DescuentoCliente + t.DescuentoExtra);
+        Assert.Equal(4m, t.DescuentoExtra);
+        Assert.Equal(76m, t.SubtotalDesc);
     }
 
-    // ---- El orden de la cascada no cambia el total: multiplicar es conmutativo ----
+    // ---- El descuento al cliente NO baja lo que el distribuidor le paga a Modumex ----
     [Fact]
-    public void OrdenDeLaCascada_NoCambiaElTotal()
+    public void DescuentoAlCliente_NoTocaElCostoDelDistribuidor()
     {
-        var normal = new Cotizacion
-        {
-            IvaPct = 0m, DescuentoPct = 5m, DescuentoClientePct = 10m,
-            Lineas = new() { new LineaCotizacion { Cantidad = 3, PrecioUnitario = 1234.56m, DescuentoPct = 20m } },
-        };
-        // los mismos tres porcentajes, intercambiados de lugar
-        var alReves = new Cotizacion
-        {
-            IvaPct = 0m, DescuentoPct = 20m, DescuentoClientePct = 5m,
-            Lineas = new() { new LineaCotizacion { Cantidad = 3, PrecioUnitario = 1234.56m, DescuentoPct = 10m } },
-        };
-        Assert.Equal(MotorPrecios.Calcular(normal).SubtotalDesc, MotorPrecios.Calcular(alReves).SubtotalDesc);
+        LineaCotizacion Linea() => new() { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m };
+        var sinCliente = new Cotizacion { IvaPct = 0m, DescuentoPct = 5m, Lineas = new() { Linea() } };
+        var conCliente = new Cotizacion { IvaPct = 0m, DescuentoPct = 5m, DescuentoClientePct = 30m, Lineas = new() { Linea() } };
+        Assert.Equal(MotorPrecios.Calcular(sinCliente).SubtotalDesc, MotorPrecios.Calcular(conCliente).SubtotalDesc);
     }
 
-    // ---- Servicios y flete no reciben NINGUNO de los tres ----
+    // ---- Cadena del CLIENTE: lo que le da el distribuidor + el adicional de Modumex ----
+    // Se arma como la arma la pantalla: precio público, el del cliente en el renglón
+    // y el adicional de Modumex como global.
     [Fact]
-    public void SinDescuento_NoRecibeElDelCliente()
+    public void CadenaCliente_DejaMargenAlDistribuidor()
+    {
+        var alCliente = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoPct = 5m,   // adicional de Modumex
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 10m } },
+        };
+        // 100 x 0.90 x 0.95 = 85.50
+        Assert.Equal(85.50m, MotorPrecios.Calcular(alCliente).SubtotalDesc);
+
+        // y le queda margen: cobra 85.50 y paga 76.00
+        var aModumex = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoPct = 5m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
+        };
+        Assert.True(MotorPrecios.Calcular(alCliente).SubtotalDesc > MotorPrecios.Calcular(aModumex).SubtotalDesc);
+    }
+
+    // ---- Servicios y flete no reciben descuento en ninguna cadena ----
+    [Fact]
+    public void SinDescuento_NoRecibeNada()
     {
         var c = new Cotizacion
         {
-            IvaPct = 0m, DescuentoPct = 5m, DescuentoClientePct = 10m,
+            IvaPct = 0m, DescuentoPct = 5m,
             Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 500m, DescuentoPct = 20m, AplicaDescuento = false } },
         };
-        var t = MotorPrecios.Calcular(c);
-        Assert.Equal(500m, t.SubtotalDesc);
-        Assert.Equal(0m, t.DescuentoCliente);
+        Assert.Equal(500m, MotorPrecios.Calcular(c).SubtotalDesc);
     }
 }

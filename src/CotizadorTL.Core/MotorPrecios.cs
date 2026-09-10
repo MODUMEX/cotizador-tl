@@ -8,7 +8,14 @@ namespace CotizadorTL.Core;
 ///   se trabaja en PRECISIÓN COMPLETA y se redondea SOLO para mostrar; el GRAN TOTAL
 ///   sale del subtotal-con-descuento sin redondear, por eso casa al centavo con los PDFs.
 ///
-/// Interacción de descuentos:
+/// Interacción de descuentos. Son DOS cadenas separadas, no una:
+///
+///   Modumex ← distribuidor:  público × (1−preestablecido) × (1−adicional Modumex)
+///   distribuidor ← cliente:  se calcula aparte, en el PDF del cliente
+///
+/// El descuento que el distribuidor le da a SU cliente sale de su propio
+/// margen: no baja lo que él le paga a Modumex, así que NO entra acá.
+///
 ///   · Líneas con AplicaDescuento=false (Servicios/Flete) NO reciben ningún descuento.
 ///   · A las demás se les aplica el descuento de renglón y luego el global, de forma
 ///     multiplicativa:  neto = bruto * (1 - renglon%) * (1 - global%).
@@ -67,15 +74,13 @@ public static class MotorPrecios
     public static Totales Calcular(Cotizacion c)
     {
         decimal subtotal = 0m;     // público (antes de descuento)
-        decimal subtotalDist = 0m; // solo con el descuento del distribuidor
-        decimal subtotalCli = 0m;  // + el del cliente
+        decimal subtotalDist = 0m; // con el preestablecido del distribuidor
         decimal subtotalDesc = 0m; // + el adicional: el neto de verdad
         foreach (var l in c.Lineas)
         {
             subtotal     += SubtotalLinea(l);
-            subtotalDist += NetoLinea(l, 0m, 0m);
-            subtotalCli  += NetoLinea(l, 0m, c.DescuentoClientePct);
-            subtotalDesc += NetoLinea(l, c.DescuentoPct, c.DescuentoClientePct);
+            subtotalDist += NetoLinea(l, 0m);
+            subtotalDesc += NetoLinea(l, c.DescuentoPct);
         }
         decimal descuentoMonto = subtotal - subtotalDesc;
         // Gastos indirectos y de envío se suman ANTES del IVA (no reciben descuento).
@@ -97,8 +102,6 @@ public static class MotorPrecios
             GastosEnvio:      R(c.GastosEnvio),
             DescuentoDistribuidor: R(subtotal - subtotalDist),
             SubtotalDistribuidor:  R(subtotalDist),
-            DescuentoCliente:      R(subtotalDist - subtotalCli),
-            SubtotalCliente:       R(subtotalCli),
-            DescuentoExtra:        R(subtotalCli - subtotalDesc));
+            DescuentoExtra:        R(subtotalDist - subtotalDesc));
     }
 }

@@ -172,8 +172,8 @@
       const _t = d.totales || {};
       let filasTot = 3; // subtotal + iva + gran total
       // el distribuidor ve la cascada completa: hasta 3 descuentos + 2 subtotales
-      if (d.mostrarDescuento) filasTot += 6;
-      else if (Number(_t.descuentoCliente) > 0) filasTot += 1;
+      if (d.mostrarDescuento) filasTot += 4;
+      else if (Number(_t.descuentoMonto) > 0) filasTot += 2;
       if (Number(_t.gastosIndirectos) > 0) filasTot += 1;
       if (Number(_t.gastosEnvio) > 0) filasTot += 1;
       const altoBloque = Math.max(filasTot * 15 + 20, 90) + 20;
@@ -205,21 +205,17 @@
           rowT("DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, { color: ROJO });
           rowT("SUBTOTAL DISTRIBUIDOR", tot.subtotalDistribuidor);
         }
-        if (Number(tot.descuentoCliente) > 0) {
-          rowT("DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, { color: ROJO });
-          rowT("SUBTOTAL CLIENTE", tot.subtotalCliente);
-        }
         if (Number(tot.descuentoExtra) > 0) {
           rowT("DESCUENTO ADICIONAL " + txt(d.descuentoPct) + "%", tot.descuentoExtra, { color: ROJO });
         }
         rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
       } else {
-        // PDF del cliente: su precio de partida ya trae el descuento del
-        // distribuidor, así que acá "SUBTOTAL" ya es ese. Solo se le muestra
-        // el descuento suyo; el adicional es del distribuidor y no se enseña.
+        // PDF del cliente: su cadena arranca en el precio público y lleva lo que
+        // el distribuidor le da más el adicional de Modumex. Se muestra un solo
+        // renglón de descuento para que la resta cierre a la vista.
         rowT("SUBTOTAL", tot.subtotal);
-        if (Number(tot.descuentoCliente) > 0) {
-          rowT("DESCUENTO " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, { color: ROJO });
+        if (Number(tot.descuentoMonto) > 0) {
+          rowT("DESCUENTO", tot.descuentoMonto, { color: ROJO });
           rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
         }
       }

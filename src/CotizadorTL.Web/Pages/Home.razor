@@ -294,11 +294,6 @@ else
                     <tr><td>Descuento distribuidor</td><td class="num desc">-@Money(t.DescuentoDistribuidor)</td></tr>
                     <tr><td class="muted">Subtotal distribuidor</td><td class="num muted">@Money(t.SubtotalDistribuidor)</td></tr>
                 }
-                @if (t.DescuentoCliente > 0)
-                {
-                    <tr><td>Descuento cliente (@cot.DescuentoClientePct.ToString("0.#")%)</td><td class="num desc">-@Money(t.DescuentoCliente)</td></tr>
-                    <tr><td class="muted">Subtotal cliente</td><td class="num muted">@Money(t.SubtotalCliente)</td></tr>
-                }
                 @if (t.DescuentoExtra > 0)
                 {
                     <tr><td>Descuento adicional (@cot.DescuentoPct.ToString("0.#")%)</td><td class="num desc">-@Money(t.DescuentoExtra)</td></tr>
@@ -314,7 +309,7 @@ else
             @if (mensaje is not null) { <div class="aviso @(mensajeOk ? "ok" : "err")">@mensaje</div> }
             <button class="btn-guardar" @onclick="Guardar" disabled="@guardando">@(guardando ? "Guardando…" : "Descargar PDF Distribuidor (guardar)")</button>
             <button class="btn-pdf" @onclick="() => DescargarPdf(false)">Descargar PDF Cliente</button>
-            <p class="muted small">El PDF Distribuidor lleva el desglose de los tres descuentos. El PDF Cliente parte del precio con descuento de distribuidor y solo muestra el suyo.</p>
+            <p class="muted small">Dos cadenas: el PDF Distribuidor es lo que le pagás a Modumex (preestablecido + adicional). El PDF Cliente es lo que le cobrás a él (lo que le des + el adicional de Modumex).</p>
         </section>
         </div>
     </div>
@@ -844,22 +839,21 @@ else
         {
             // El PDF de cliente lleva SU IVA, no el de la zona del distribuidor.
             //
-            // Y su precio de partida NO es el público: es el que queda después del
-            // descuento del distribuidor. Sobre ese se le aplica el suyo. El
-            // adicional se queda afuera: es del distribuidor y el cliente no lo ve.
+            // Su cadena es OTRA, no la de Modumex: arranca del precio PÚBLICO, le
+            // baja lo que el distribuidor decide darle, y sobre eso el adicional de
+            // Modumex. El descuento preestablecido del distribuidor NO le llega: es
+            // su costo, y la diferencia entre ese y lo que da es su margen.
             var paraCliente = new Cotizacion
             {
                 IvaPct = cot.IvaClientePct, AnticipoPct = cot.AnticipoPct,
-                DescuentoPct = 0m,
-                DescuentoClientePct = cot.DescuentoClientePct,
+                DescuentoPct = cot.DescuentoPct,   // el adicional de Modumex también le llega
                 GastosIndirectos = cot.GastosIndirectos, GastosEnvio = cot.GastosEnvio,
                 Lineas = cot.Lineas.Select(l => new LineaCotizacion
                 {
                     Cantidad = l.Cantidad,
-                    // el unitario que ve el cliente ya trae el descuento del distribuidor
-                    PrecioUnitario = l.AplicaDescuento
-                        ? l.PrecioUnitario * (1 - l.DescuentoPct / 100m)
-                        : l.PrecioUnitario,
+                    PrecioUnitario = l.PrecioUnitario,   // público
+                    // en el renglón va el que el distribuidor le da al cliente
+                    DescuentoPct = l.AplicaDescuento ? cot.DescuentoClientePct : 0m,
                     AplicaDescuento = l.AplicaDescuento,
                 }).ToList(),
             };
@@ -895,19 +889,10 @@ else
                 descuentoDistribuidor = (double)t.DescuentoDistribuidor, subtotalDistribuidor = (double)t.SubtotalDistribuidor,
                 descuentoCliente = (double)t.DescuentoCliente, subtotalCliente = (double)t.SubtotalCliente,
                 descuentoExtra = (double)t.DescuentoExtra },
-            // En el PDF del cliente los renglones van con el precio que YA trae el
-            // descuento del distribuidor: si no, la tabla mostraría precio público y
-            // el subtotal saldría más bajo, sin cuadrar.
-            lineas = lineas.Where(l => l.ProductoId is not null).Select(l =>
+            lineas = lineas.Where(l => l.ProductoId is not null).Select(l => new
             {
-                var p = ProdDe(l);
-                decimal unit = PrecioUnit(l);
-                if (!conDescuento && (p?.AplicaDescuento ?? true)) unit *= 1 - l.DescuentoPct / 100m;
-                return new
-                {
-                    cantidad = (double)l.Cantidad, codigoSap = p?.CodigoSap ?? "", descripcion = l.Descripcion,
-                    color = ColorFinal(l), precioUnitario = (double)unit, importe = (double)(l.Cantidad * unit),
-                };
+                cantidad = (double)l.Cantidad, codigoSap = ProdDe(l)?.CodigoSap ?? "", descripcion = l.Descripcion,
+                color = ColorFinal(l), precioUnitario = (double)PrecioUnit(l), importe = (double)Importe(l),
             }).ToArray(),
         };
         await JS.InvokeVoidAsync("cotizadorPdf.generar", dto);

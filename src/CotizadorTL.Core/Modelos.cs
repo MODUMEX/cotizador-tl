@@ -115,9 +115,5 @@ public sealed record Totales(
     decimal DescuentoDistribuidor = 0m,
     /// <summary>Subtotal después del descuento del distribuidor. Es la BASE del cliente.</summary>
     decimal SubtotalDistribuidor = 0m,
-    /// <summary>Lo que se descontó al cliente, sobre el subtotal de arriba.</summary>
-    decimal DescuentoCliente = 0m,
-    /// <summary>Subtotal después del descuento del cliente. Es lo que el cliente paga (sin IVA).</summary>
-    decimal SubtotalCliente = 0m,
-    /// <summary>Lo que se descontó de más (el "extra"), que el cliente NO ve.</summary>
+    /// <summary>Lo que se descontó por el adicional de Modumex.</summary>
     decimal DescuentoExtra = 0m);
