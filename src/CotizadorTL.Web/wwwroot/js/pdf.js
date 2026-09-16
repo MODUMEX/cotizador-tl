@@ -151,7 +151,11 @@
       doc.autoTable({
         startY: y,
         margin: { left: M, right: M },
-        head: [["CANTIDAD", "CÓDIGO SAP", "DESCRIPCIÓN", "COLOR", "PRECIO UNITARIO PÚBLICO", "PRECIO TOTAL PÚBLICO"]],
+        head: [[
+          "CANTIDAD", "CÓDIGO SAP", "DESCRIPCIÓN", "COLOR",
+          d.tipoPdf === "CLIENTE" ? "PRECIO UNITARIO" : "PRECIO UNITARIO PÚBLICO",
+          d.tipoPdf === "CLIENTE" ? "PRECIO TOTAL" : "PRECIO TOTAL PÚBLICO",
+        ]],
         body: body,
         styles: { font: "Roboto", fontSize: 7.5, cellPadding: 4, valign: "middle", textColor: OSCURO, lineColor: [210, 210, 210], lineWidth: 0.5 },
         headStyles: { fillColor: VERDE, textColor: [255, 255, 255], fontSize: 7.5, halign: "center" },
@@ -172,7 +176,7 @@
       const _t = d.totales || {};
       let filasTot = 3; // subtotal + iva + gran total
       // el distribuidor ve la cascada completa: hasta 3 descuentos + 2 subtotales
-      if (d.mostrarDescuento) filasTot += 7;
+      if (d.mostrarDescuento) filasTot += 6;
       else if (Number(_t.descuentoMonto) > 0) filasTot += 2;
       if (Number(_t.gastosIndirectos) > 0) filasTot += 1;
       if (Number(_t.gastosEnvio) > 0) filasTot += 1;
@@ -198,21 +202,27 @@
         fy += 15;
       };
       if (d.mostrarDescuento) {
-        // PDF del DISTRIBUIDOR: los tres en cascada, uno sobre lo que dejó el
-        // anterior, con el subtotal intermedio de cada paso.
-        rowT("SUBTOTAL PÚBLICO", tot.subtotal);
+        // PDF del DISTRIBUIDOR: los descuentos que haya, en cascada, cada uno
+        // sobre lo que dejó el anterior y con el subtotal que resulta.
+        //
+        // El último subtotal es el final, así que se rotula distinto y NO se
+        // repite: con un solo descuento, antes salían dos filas con el mismo
+        // número, "SUBTOTAL DESCUENTO" y "SUBTOTAL CON DESCUENTO".
+        const pasos = [];
         if (Number(tot.descuentoDistribuidor) > 0) {
-          rowT("DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, { color: ROJO });
-          rowT("SUBTOTAL DESCUENTO", tot.subtotalDistribuidor);
+          pasos.push(["DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, tot.subtotalDistribuidor]);
         }
         if (Number(tot.descuentoCliente) > 0) {
-          rowT("DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, { color: ROJO });
-          rowT("SUBTOTAL DESCUENTO", tot.subtotalCliente);
+          pasos.push(["DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, tot.subtotalCliente]);
         }
         if (Number(tot.descuentoExtra) > 0) {
-          rowT("DESCUENTO EXTRA " + txt(d.descuentoPct) + "%", tot.descuentoExtra, { color: ROJO });
+          pasos.push(["DESCUENTO EXTRA " + txt(d.descuentoPct) + "%", tot.descuentoExtra, tot.subtotalDesc]);
         }
-        rowT("SUBTOTAL CON DESCUENTO", tot.subtotalDesc);
+        rowT("SUBTOTAL PÚBLICO", tot.subtotal);
+        pasos.forEach(function (paso, i) {
+          rowT(paso[0], paso[1], { color: ROJO });
+          rowT(i === pasos.length - 1 ? "SUBTOTAL CON DESCUENTO" : "SUBTOTAL DESCUENTO", paso[2]);
+        });
       } else {
         // PDF del CLIENTE: el subtotal ya trae el descuento del distribuidor —es
         // su precio de lista— y encima va solo el suyo. El extra no aparece.
