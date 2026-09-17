@@ -67,9 +67,14 @@ public class PDistribuidorDescuento : BaseModel
 [Table("producto_precio")]
 public class PProductoPrecio : BaseModel
 {
-    [PrimaryKey("producto_id", false)] public long ProductoId { get; set; }
-    [Column("grupo")]  public string Grupo { get; set; } = "";
-    [Column("precio")] public decimal Precio { get; set; }
+    // La llave de producto_precio es COMPUESTA: (producto_id, grupo). Las dos van
+    // con shouldInsert en true porque las dos hay que mandarlas al insertar: acá
+    // producto_id no lo genera la base, es la foránea al producto. Con false se
+    // omitía del INSERT y llegaba en nulo, así que dar de alta un producto
+    // fallaba con "null value in column producto_id".
+    [PrimaryKey("producto_id", true)] public long ProductoId { get; set; }
+    [PrimaryKey("grupo", true)]       public string Grupo { get; set; } = "";
+    [Column("precio")]                public decimal Precio { get; set; }
 }
 
 [Table("distribuidor")]
