@@ -203,16 +203,25 @@ else
                                 }
                             }
 
-                            @* Color interior: SOLO los lockers PRO lo llevan *@
-                            @if (EsFamilia(l, "LOCKERS") && !prod.EsExtra && TierDe(prod) == "PRO")
+                            @* Color interior: el PRO lo elige, el SMART lo tiene fijo en Alúmina *@
+                            @if (EsFamilia(l, "LOCKERS") && !prod.EsExtra)
                             {
-                                <label>Color interior
-                                    <select @bind="l.ColorInterior" @bind:after="StateHasChanged">
-                                        <option value="">@(ColorRegion == "MXN" ? "Alúmina" : "Gris") (estándar)</option>
-                                        @foreach (var c in ColoresInterior())
-                                        { <option value="@c.Nombre">@c.Nombre</option> }
-                                    </select>
-                                </label>
+                                @if (TierDe(prod) == "PRO")
+                                {
+                                    <label>Color interior
+                                        <select @bind="l.ColorInterior" @bind:after="StateHasChanged">
+                                            <option value="">@(ColorRegion == "MXN" ? "Alúmina" : "Gris") (estándar)</option>
+                                            @foreach (var c in ColoresInterior())
+                                            { <option value="@c.Nombre">@c.Nombre</option> }
+                                        </select>
+                                    </label>
+                                }
+                                else
+                                {
+                                    <label>Color interior
+                                        <div class="reparto">@INTERIOR_SMART (único)</div>
+                                    </label>
+                                }
                             }
                         </div>
 
@@ -473,6 +482,9 @@ else
         return Catalogo.Colores.Where(c => c.Ambito == amb && c.Region == ColorRegion);
     }
 
+    // El locker SMART no elige interior: siempre es Alúmina.
+    private const string INTERIOR_SMART = "Alúmina";
+
     private string TierDe(Producto p) => (p.CodigoSap.StartsWith("L-") || p.CodigoSap.Contains("SMART")) ? "SMART" : "PRO";
 
     // Precio base del extra en MXN (base común del catálogo).
@@ -636,6 +648,8 @@ else
                 if (!string.IsNullOrEmpty(l.ColorNombre) && !ColoresDe(l).Any(c => c.Nombre == l.ColorNombre)) l.ColorNombre = "";
                 if (!string.IsNullOrEmpty(l.ColorInterior) && !ColoresInterior().Any(c => c.Nombre == l.ColorInterior)) l.ColorInterior = "";
                 var p = ProdDe(l);
+                // el SMART no elige interior: si venía uno de un PRO, se descarta
+                if (p is not null && EsFamilia(l, "LOCKERS") && TierDe(p) != "PRO") l.ColorInterior = "";
                 if (p is not null && p.AplicaDescuento) l.DescuentoPct = Catalogo.DescuentoFamilia(distribuidorId, l.FamiliaCodigo);
                 RegenerarDescripcion(l);
             }
