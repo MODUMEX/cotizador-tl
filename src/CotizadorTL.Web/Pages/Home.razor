@@ -186,8 +186,25 @@ else
                                 }
                             }
 
-                            @* Lockers: color interior + extras *@
-                            @if (EsFamilia(l, "LOCKERS") && !prod.EsExtra)
+                            @* Dos colores de línea en el mismo renglón —dos colores de puerta, por
+                               ejemplo—. No cuesta nada: se elige de la misma lista de la región. *@
+                            @if (AplicaDosColores(l, prod))
+                            {
+                                <label class="chk"><input type="checkbox" @bind="l.DosColores" @bind:after="() => OnColorChanged(l)" /> Dos colores (sin costo)</label>
+                                @if (l.DosColores)
+                                {
+                                    <label>Segundo color
+                                        <select @bind="l.SegundoColorLinea" @bind:after="() => OnColorChanged(l)">
+                                            <option value="">—</option>
+                                            @foreach (var c in ColoresDe(l))
+                                            { <option value="@c.Nombre">@c.Nombre (@c.Grupo)</option> }
+                                        </select>
+                                    </label>
+                                }
+                            }
+
+                            @* Color interior: SOLO los lockers PRO lo llevan *@
+                            @if (EsFamilia(l, "LOCKERS") && !prod.EsExtra && TierDe(prod) == "PRO")
                             {
                                 <label>Color interior
                                     <select @bind="l.ColorInterior" @bind:after="StateHasChanged">
@@ -488,6 +505,13 @@ else
 
     // Segundo color especial: disponible en familias de precio fijo por pieza, y solo para
     // quien cotiza de este lado (vendedores/admin). El distribuidor no lo ve ni lo puede activar.
+    // Dos colores de línea: lo ve CUALQUIERA, también el distribuidor, porque no
+    // cambia el precio. El segundo color ESPECIAL sí queda para vendedores y
+    // administradores, que es quien decide cobrar el sobreprecio.
+    private bool AplicaDosColores(LineaUI l, Producto p)
+        => !p.EsExtra && p.TipoPrecio != "m2"
+           && (EsFamilia(l, "LOCKERS") || EsFamilia(l, "VESTIDORES") || EsFamilia(l, "BANCAS") || EsFamilia(l, "CUBIERTAS"));
+
     private bool AplicaSegundoColor(LineaUI l, Producto p)
         => Auth.PuedeVerTodo && !p.EsExtra
            && (EsFamilia(l, "LOCKERS") || EsFamilia(l, "VESTIDORES") || EsFamilia(l, "BANCAS"));
@@ -548,6 +572,7 @@ else
     {
         l.ProductoId = null; l.Grupo = ""; l.Descripcion = ""; l.LargoCm = l.AnchoCm = null;
         l.ColorNombre = l.ColorInterior = l.ColorEspecialNombre = ""; l.ColorEspecial = false; l.Exterior = false; l.ExtrasCant.Clear();
+        l.DosColores = false; l.SegundoColorLinea = "";
         l.SegundoColor = false; l.SegundoColorNombre = ""; l.SegundoColorM2 = null;
         l.Canto = ""; l.Perforacion = false; l.PerforacionCant = 1; l.Grabado = false; l.GrabadoCant = 1;
         StateHasChanged();
@@ -570,7 +595,7 @@ else
     // Al cambiar el lugar de fabricación cambia la paleta de colores: se limpian los colores elegidos.
     private void OnFabricacionChanged()
     {
-        foreach (var l in lineas) { l.ColorNombre = ""; l.ColorInterior = ""; RegenerarDescripcion(l); }
+        foreach (var l in lineas) { l.ColorNombre = ""; l.ColorInterior = ""; l.SegundoColorLinea = ""; RegenerarDescripcion(l); }
         StateHasChanged();
     }
 
@@ -663,6 +688,8 @@ else
         var colorTxt = ColorFinal(l);
         if (!string.IsNullOrEmpty(colorTxt)) sb.Append($" COLOR: {colorTxt}.");
         if (!string.IsNullOrEmpty(l.ColorInterior)) sb.Append($" INTERIOR: {l.ColorInterior}.");
+        if (l.DosColores && !string.IsNullOrWhiteSpace(l.SegundoColorLinea))
+            sb.Append($" SEGUNDO COLOR: {l.SegundoColorLinea.Trim().ToUpperInvariant()}.");
         if (l.SegundoColor && !string.IsNullOrWhiteSpace(l.SegundoColorNombre))
             sb.Append($" SEGUNDO COLOR: {l.SegundoColorNombre.Trim().ToUpperInvariant()}"
                     + (l.SegundoColorM2 > 0 ? $" ({l.SegundoColorM2:0.##} M²)." : "."));
@@ -934,6 +961,10 @@ else
         public bool SegundoColor { get; set; }
         public string SegundoColorNombre { get; set; } = "";
         public decimal? SegundoColorM2 { get; set; }
+        /// <summary>Dos colores de LÍNEA en el mismo renglón: no es el color especial,
+        /// no cuesta nada y sale de la misma lista de la región.</summary>
+        public bool DosColores { get; set; }
+        public string SegundoColorLinea { get; set; } = "";
         public bool Exterior { get; set; }
         public string Canto { get; set; } = "";
         public bool Perforacion { get; set; }
