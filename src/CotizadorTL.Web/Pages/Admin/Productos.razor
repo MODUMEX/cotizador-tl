@@ -43,6 +43,7 @@ else
             </label>
             <label>Precio (MXN)<input type="number" step="0.0001" @bind="nPrecio" /></label>
             <label class="chk"><input type="checkbox" @bind="nExtra" /> Es extra de locker</label>
+            <label class="chk"><input type="checkbox" @bind="nDescuento" /> Lleva descuento de distribuidor</label>
         </div>
         <label class="desc">Descripción<textarea rows="2" @bind="nDesc"></textarea></label>
         <button class="btn-add" @onclick="Agregar" disabled="@guardando">@(guardando ? "Guardando…" : "Agregar producto")</button>
@@ -62,7 +63,7 @@ else
         </div>
         <div class="tabla-wrap">
             <table class="proyectos">
-                <thead><tr><th>Código SAP</th><th>Nombre</th><th>Familia</th><th>Tipo</th><th class="num">Precio(s)</th><th>Extra</th><th></th></tr></thead>
+                <thead><tr><th>Código SAP</th><th>Nombre</th><th>Familia</th><th>Tipo</th><th class="num">Precio(s)</th><th>Extra</th><th>Descuento</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var p in Filtrados())
                     {
@@ -73,6 +74,7 @@ else
                             <td>@(p.TipoPrecio == "m2" ? "m²" : "fijo")</td>
                             <td class="num">@string.Join(" · ", p.Precios.Select(kv => $"{kv.Key}: {kv.Value:#,##0.##}"))</td>
                             <td>@(p.EsExtra ? "Sí" : "")</td>
+                            <td>@(p.AplicaDescuento ? "Sí" : "no")</td>
                             <td><button class="btn-mini pdf" @onclick="() => Eliminar(p)">Eliminar</button></td>
                         </tr>
                     }
@@ -92,6 +94,10 @@ else
     private string nFamilia = "CUBIERTAS", nCodigo = "", nNombre = "", nTipo = "fijo", nGrupo = "G1", nDesc = "";
     private decimal nPrecio;
     private bool nExtra;
+    // La instalación y el flete NO llevan descuento. Antes se deducía de la
+    // familia, así que un producto de instalación cargado fuera de Servicios
+    // salía descontado sin que nadie lo notara.
+    private bool nDescuento = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -115,6 +121,7 @@ else
     {
         var grupos = GruposDe(nFamilia);
         if (!grupos.Any(g => g.val == nGrupo)) nGrupo = grupos[0].val;  // ajusta el grupo al primero válido
+        nDescuento = nFamilia != "SERVICIOS";  // se propone; la casilla manda
         StateHasChanged();
     }
 
@@ -134,7 +141,7 @@ else
             {
                 CodigoSap = nCodigo.Trim(), FamiliaCodigo = nFamilia, Nombre = nNombre.Trim(), Descripcion = nDesc ?? "",
                 TipoPrecio = nTipo, Unidad = nTipo == "m2" ? "m2" : "pieza", Moneda = "MXN",
-                RequiereMedidas = nTipo == "m2", AplicaDescuento = nFamilia != "SERVICIOS", EsExtra = nExtra, Activo = true, Orden = 999,
+                RequiereMedidas = nTipo == "m2", AplicaDescuento = nDescuento, EsExtra = nExtra, Activo = true, Orden = 999,
             };
             var resp = await Supa.From<PProducto>().Insert(prod);
             var nuevo = resp.Models.First();
@@ -144,7 +151,7 @@ else
             });
             await Catalogo.CargarAsync(forzar: true);
             ok = true; msg = $"Producto {nuevo.CodigoSap} agregado.";
-            nCodigo = nNombre = nDesc = ""; nPrecio = 0; nExtra = false;
+            nCodigo = nNombre = nDesc = ""; nPrecio = 0; nExtra = false; nDescuento = nFamilia != "SERVICIOS";
         }
         catch (Exception ex) { ok = false; msg = "No se pudo agregar: " + ex.Message; }
         finally { guardando = false; }
