@@ -40,7 +40,16 @@ else
                             </td>
                             <td>
                                 @if (u.Activo) { <span class="estado" style="background:var(--tl-lima-bg);color:var(--tl-verde-txt)">Activo</span> }
-                                else { <span class="estado" style="background:#fdecea;color:#b03030">Pendiente</span> }
+                                else
+                                {
+                                    <span class="estado" style="background:#fdecea;color:#b03030">Pendiente</span>
+                                    @if (u.DesactivadoEl is DateTime d)
+                                    {
+                                        <div class="muted" style="font-size:.75rem;margin-top:.15rem">
+                                            Desactivada @d.ToLocalTime().ToString("dd/MM/yyyy") · se borra el @d.ToLocalTime().AddMonths(1).ToString("dd/MM/yyyy")
+                                        </div>
+                                    }
+                                }
                             </td>
                             <td class="acciones">
                                 <button class="btn-mini xls" @onclick="() => GuardarCuenta(u)">@(u.Activo ? "Guardar" : "Autorizar")</button>
@@ -158,7 +167,7 @@ else
         cuentas.Clear();
         var resp = await Supa.From<Profile>().Order("nombre", Supabase.Postgrest.Constants.Ordering.Ascending).Get();
         foreach (var p in resp.Models.Where(p => p.Rol == "Distribuidor"))
-            cuentas.Add(new CuentaVM { Id = p.Id, Nombre = p.Nombre, Email = p.Email, DistribuidorId = p.DistribuidorId, Activo = p.Activo });
+            cuentas.Add(new CuentaVM { Id = p.Id, Nombre = p.Nombre, Email = p.Email, DistribuidorId = p.DistribuidorId, Activo = p.Activo, DesactivadoEl = p.DesactivadoEl });
     }
 
     private async Task GuardarCuenta(CuentaVM u)
@@ -170,6 +179,7 @@ else
             var p = new Profile { Id = u.Id, Nombre = u.Nombre, Email = u.Email, Rol = "Distribuidor", DistribuidorId = u.DistribuidorId, Activo = true };
             await Supa.From<Profile>().Update(p);
             u.Activo = true;
+            u.DesactivadoEl = null;
             var cerr = await Auth.ConfirmarUsuario(u.Id);   // confirma el correo (sin SQL) para que pueda entrar
             okU = true;
             msgU = cerr is null
@@ -189,7 +199,8 @@ else
                                   DistribuidorId = u.DistribuidorId, Activo = false };
             await Supa.From<Profile>().Update(p);
             u.Activo = false;
-            okU = true; msgU = $"{u.Email} desactivado. Queda pendiente; puedes reactivarlo con “Autorizar” cuando quieras.";
+            u.DesactivadoEl = DateTime.UtcNow;
+            okU = true; msgU = $"{u.Email} desactivado. Puedes reactivarlo con Autorizar; si sigue desactivado el {DateTime.Now.AddMonths(1):dd/MM/yyyy} la cuenta se elimina sola.";
         }
         catch (Exception ex) { okU = false; msgU = "No se pudo desactivar: " + ex.Message; }
     }
@@ -276,6 +287,7 @@ else
         public string? Email { get; set; }
         public long? DistribuidorId { get; set; }
         public bool Activo { get; set; }
+        public DateTime? DesactivadoEl { get; set; }
         public string DistribuidorIdStr
         {
             get => DistribuidorId?.ToString() ?? "";

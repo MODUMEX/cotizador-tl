@@ -15,4 +15,5 @@ public class Profile : BaseModel
     [Column("rol")]             public string Rol { get; set; } = "Distribuidor";
     [Column("distribuidor_id")] public long? DistribuidorId { get; set; }
     [Column("activo")]          public bool Activo { get; set; } = true;
+    [Column("desactivado_el")]  public DateTime? DesactivadoEl { get; set; }
 }
