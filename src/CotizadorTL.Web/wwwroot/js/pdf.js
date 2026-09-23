@@ -24,9 +24,12 @@
     excl.push("VIÁTICOS");
     let lista = excl.length === 1 ? excl[0] : excl.slice(0, -1).join(", ") + " O " + excl[excl.length - 1];
     const entrega = (d.entrega && String(d.entrega).trim()) ? String(d.entrega).trim().toUpperCase() : "CONFIRMAR";
-    return ["TIEMPO DE ENTREGA: " + entrega + ", SALVO CONFIRMACIÓN DE MATERIAL",
-            "ESTA COTIZACIÓN NO INCLUYE COSTOS DE " + lista + ".",
-            "DESCUENTO DISTRIBUIDOR APLICADO"];
+    const lineas = ["TIEMPO DE ENTREGA: " + entrega + ", SALVO CONFIRMACIÓN DE MATERIAL",
+                    "ESTA COTIZACIÓN NO INCLUYE COSTOS DE " + lista + "."];
+    // Al cliente no se le dice que hay un descuento de distribuidor: ese trato
+    // es entre Modumex y el distribuidor, y su PDF ya sale con el precio final.
+    if (d.tipoPdf !== "CLIENTE") lineas.push("DESCUENTO DISTRIBUIDOR APLICADO");
+    return lineas;
   }
   const NOTA = "CARGOS POR ALMACENAJE $100 POR DÍA NATURAL, DESPUÉS DE 1 MES DE LA FECHA DE ENTREGA DEL PEDIDO. " +
                "CONDICIONES DE PAGO: 60% DE ANTICIPO, 40% DE SALDO EL CUAL DEBE SER LIQUIDADO ANTES DE LA ENTREGA DEL PRODUCTO.";
