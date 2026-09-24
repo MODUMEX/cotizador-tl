@@ -227,8 +227,8 @@
           rowT(i === pasos.length - 1 ? "SUBTOTAL CON DESCUENTO" : "SUBTOTAL DESCUENTO", paso[2]);
         });
       } else {
-        // PDF del CLIENTE: el subtotal ya trae el descuento del distribuidor —es
-        // su precio de lista— y encima va solo el suyo. El extra no aparece.
+        // PDF del CLIENTE: el subtotal es el PÚBLICO. El descuento del distribuidor
+        // no le llega; solo aparece el que su distribuidor decida darle.
         rowT("SUBTOTAL", tot.subtotal);
         if (Number(tot.descuentoMonto) > 0) {
           rowT("DESCUENTO " + txt(d.descuentoClientePct) + "%", tot.descuentoMonto, { color: ROJO });

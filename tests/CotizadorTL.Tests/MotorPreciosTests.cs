@@ -208,4 +208,69 @@ public class MotorPreciosTests
         Assert.Equal(500m, t.SubtotalDesc);
         Assert.Equal(0m, t.DescuentoCliente);
     }
+
+    // ===================================================================
+    // COT.1098 ACM (24-sep-2026): el descuento del distribuidor NO le llega
+    // al cliente. El cliente paga el PUBLICO y solo ve el descuento que su
+    // distribuidor decida darle; el distribuidor paga el publico menos el suyo.
+    // ===================================================================
+    private static Cotizacion Cot1098(bool paraCliente, decimal descAlCliente = 0m)
+    {
+        // 8 lockers L-100-T + 8 instalaciones (la instalacion no lleva descuento)
+        // y ,760 de envio, que se suman antes del IVA.
+        return new Cotizacion
+        {
+            IvaPct = 16m, AnticipoPct = 60m, GastosEnvio = 8760m,
+            DescuentoClientePct = descAlCliente,
+            Lineas = new()
+            {
+                Linea(8, 11776.78875m, descLinea: paraCliente ? 0m : 20m),
+                Linea(8, 450m, aplicaDesc: false),
+            },
+        };
+    }
+
+    [Fact]
+    public void Cot1098_ElDistribuidorEsQuienLlevaElDescuento()
+    {
+        var t = MotorPrecios.Calcular(Cot1098(paraCliente: false));
+
+        Assert.Equal(97814.31m,  t.Subtotal);
+        Assert.Equal(18842.86m,  t.DescuentoMonto);
+        Assert.Equal(78971.45m,  t.SubtotalDesc);
+        Assert.Equal(14037.03m,  t.IvaMonto);
+        Assert.Equal(101768.48m, t.GranTotal);
+    }
+
+    [Fact]
+    public void Cot1098_ElClientePagaElPublico()
+    {
+        var t = MotorPrecios.Calcular(Cot1098(paraCliente: true));
+
+        Assert.Equal(97814.31m,  t.Subtotal);
+        Assert.Equal(0m,         t.DescuentoMonto);   // el del distribuidor no le llega
+        Assert.Equal(97814.31m,  t.SubtotalDesc);
+        Assert.Equal(17051.89m,  t.IvaMonto);
+        Assert.Equal(123626.20m, t.GranTotal);
+    }
+
+    [Fact]
+    public void Cot1098_ElClienteSoloVeElDescuentoQueSuDistribuidorLeDa()
+    {
+        var t = MotorPrecios.Calcular(Cot1098(paraCliente: true, descAlCliente: 10m));
+
+        Assert.Equal(97814.31m, t.Subtotal);
+        Assert.Equal(9421.43m,  t.DescuentoMonto);   // 10% del publico
+        Assert.Equal(88392.88m, t.SubtotalDesc);
+    }
+
+    [Fact]
+    public void Cot1098_ElDistribuidorGanaLaDiferencia()
+    {
+        var dist = MotorPrecios.Calcular(Cot1098(paraCliente: false));
+        var cli  = MotorPrecios.Calcular(Cot1098(paraCliente: true));
+
+        Assert.True(cli.GranTotal > dist.GranTotal);
+        Assert.Equal(21857.72m, cli.GranTotal - dist.GranTotal);
+    }
 }

@@ -885,12 +885,10 @@ else
             t = MotorPrecios.Calcular(cot);
         else
         {
-            // El PDF de cliente lleva SU IVA, no el de la zona del distribuidor.
-            //
-            // El PDF de cliente lleva SU IVA y arranca del subtotal que ya trae el
-            // descuento del distribuidor: ese es su precio de lista. Sobre eso se
-            // le aplica el suyo, que es el único descuento que ve. El extra no le
-            // llega: se lo queda el distribuidor.
+            // El PDF de cliente lleva SU IVA, no el de la zona del distribuidor, y
+            // arranca del PRECIO PÚBLICO: el descuento del distribuidor es el margen
+            // del distribuidor y no le llega al cliente. Lo único que el cliente ve
+            // es el descuento que su distribuidor decida darle.
             var paraCliente = new Cotizacion
             {
                 IvaPct = cot.IvaClientePct, AnticipoPct = cot.AnticipoPct,
@@ -900,10 +898,8 @@ else
                 Lineas = cot.Lineas.Select(l => new LineaCotizacion
                 {
                     Cantidad = l.Cantidad,
-                    // el unitario del cliente ya trae el descuento del distribuidor
-                    PrecioUnitario = l.AplicaDescuento
-                        ? l.PrecioUnitario * (1 - l.DescuentoPct / 100m)
-                        : l.PrecioUnitario,
+                    // PÚBLICO: el descuento del distribuidor es suyo y no le llega al cliente
+                    PrecioUnitario = l.PrecioUnitario,
                     AplicaDescuento = l.AplicaDescuento,
                 }).ToList(),
             };
@@ -939,14 +935,13 @@ else
                 descuentoDistribuidor = (double)t.DescuentoDistribuidor, subtotalDistribuidor = (double)t.SubtotalDistribuidor,
                 descuentoCliente = (double)t.DescuentoCliente, subtotalCliente = (double)t.SubtotalCliente,
                 descuentoExtra = (double)t.DescuentoExtra },
-            // En el PDF del cliente los renglones llevan el precio que ya trae el
-            // descuento del distribuidor: si fueran al público, la tabla mostraría
-            // unos precios y el subtotal otro, sin cuadrar.
+            // En los dos PDF los renglones van al precio público: el del cliente
+            // porque ese es su precio, y el del distribuidor porque su descuento se
+            // muestra abajo, en la cascada.
             lineas = lineas.Where(l => l.ProductoId is not null).Select(l =>
             {
                 var p = ProdDe(l);
                 decimal unit = PrecioUnit(l);
-                if (!conDescuento && (p?.AplicaDescuento ?? true)) unit *= 1 - l.DescuentoPct / 100m;
                 return new
                 {
                     cantidad = (double)l.Cantidad, codigoSap = p?.CodigoSap ?? "", descripcion = l.Descripcion,
