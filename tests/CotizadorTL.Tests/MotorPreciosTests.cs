@@ -139,14 +139,13 @@ public class MotorPreciosTests
     }
 
     // ===================================================================
-    // Los TRES descuentos, siempre en este orden y en cascada:
-    //   1) preestablecido del distribuidor  2) del cliente  3) extra
-    // Cada uno sobre lo que dejo el anterior, nunca sobre el publico.
+    // El descuento del distribuidor es SU margen: el cliente paga el publico
+    // menos, si acaso, lo que su distribuidor decida darle.
     // ===================================================================
     [Fact]
-    public void TresDescuentos_EnCascadaYEnOrden()
+    public void ElClientePagaElPublicoMenosLoQueLeDanAEl()
     {
-        // 100 · 20% distribuidor · 10% cliente · 5% extra
+        // 100 · 20% distribuidor · 10% al cliente · 5% extra
         var c = new Cotizacion
         {
             IvaPct = 0m, DescuentoClientePct = 10m, DescuentoPct = 5m,
@@ -156,29 +155,24 @@ public class MotorPreciosTests
 
         Assert.Equal(100m, t.Subtotal);
         Assert.Equal(20m, t.DescuentoDistribuidor);
-        Assert.Equal(80m, t.SubtotalDistribuidor);   // 1) tras el distribuidor
-        Assert.Equal(8m, t.DescuentoCliente);        //    10% de 80
-        Assert.Equal(72m, t.SubtotalCliente);        // 2) lo que paga el CLIENTE
-        Assert.Equal(3.60m, t.DescuentoExtra);       //    5% de 72
-        Assert.Equal(68.40m, t.SubtotalDesc);        // 3) lo que paga el DISTRIBUIDOR
-
-        // el desglose cierra contra el descuento total
-        Assert.Equal(t.Subtotal - t.SubtotalDesc,
-                     t.DescuentoDistribuidor + t.DescuentoCliente + t.DescuentoExtra);
+        Assert.Equal(80m, t.SubtotalDistribuidor);   // tras el del distribuidor
+        Assert.Equal(10m, t.DescuentoCliente);       // 10% del PUBLICO, no de 80
+        Assert.Equal(90m, t.SubtotalCliente);        // lo que paga el CLIENTE
+        Assert.Equal(4m, t.DescuentoExtra);          // 5% de 80
+        Assert.Equal(76m, t.SubtotalDesc);           // lo que paga el DISTRIBUIDOR
     }
 
-    // ---- El cliente paga MAS que el distribuidor: el extra no le llega ----
+    // ---- Lo que el distribuidor le da a su cliente NO le baja su costo ----
     [Fact]
-    public void ElExtra_NoLlegaAlCliente()
+    public void ElDescuentoAlCliente_NoLeBajaElCostoAlDistribuidor()
     {
-        var c = new Cotizacion
-        {
-            IvaPct = 0m, DescuentoClientePct = 10m, DescuentoPct = 5m,
-            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
-        };
-        var t = MotorPrecios.Calcular(c);
-        Assert.True(t.SubtotalCliente > t.SubtotalDesc);
-        Assert.Equal(3.60m, t.SubtotalCliente - t.SubtotalDesc);   // el margen es el extra
+        LineaCotizacion Uno() => new() { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m };
+        var sin = MotorPrecios.Calcular(new Cotizacion { IvaPct = 0m, Lineas = new() { Uno() } });
+        var con = MotorPrecios.Calcular(new Cotizacion { IvaPct = 0m, DescuentoClientePct = 10m, Lineas = new() { Uno() } });
+
+        Assert.Equal(sin.SubtotalDesc, con.SubtotalDesc);   // el distribuidor paga lo mismo
+        Assert.Equal(80m, con.SubtotalDesc);
+        Assert.Equal(90m, con.SubtotalCliente);             // y el cliente paga menos
     }
 
     // ---- Sin descuento al cliente, la cadena sigue siendo dist + extra ----
@@ -207,6 +201,7 @@ public class MotorPreciosTests
         var t = MotorPrecios.Calcular(c);
         Assert.Equal(500m, t.SubtotalDesc);
         Assert.Equal(0m, t.DescuentoCliente);
+        Assert.Equal(500m, t.SubtotalCliente);
     }
 
     // ===================================================================
@@ -221,7 +216,8 @@ public class MotorPreciosTests
         return new Cotizacion
         {
             IvaPct = 16m, AnticipoPct = 60m, GastosEnvio = 8760m,
-            DescuentoClientePct = descAlCliente,
+            // el PDF del cliente manda su descuento en el tramo que le aplica
+            DescuentoPct = paraCliente ? descAlCliente : 0m,
             Lineas = new()
             {
                 Linea(8, 11776.78875m, descLinea: paraCliente ? 0m : 20m),

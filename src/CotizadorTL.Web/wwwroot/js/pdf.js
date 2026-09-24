@@ -208,15 +208,15 @@
         // PDF del DISTRIBUIDOR: los descuentos que haya, en cascada, cada uno
         // sobre lo que dejó el anterior y con el subtotal que resulta.
         //
+        // Lo que el distribuidor le dé a su cliente NO va acá: sale de su margen,
+        // no de lo que él paga. Esta cadena es solo la suya.
+        //
         // El último subtotal es el final, así que se rotula distinto y NO se
         // repite: con un solo descuento, antes salían dos filas con el mismo
         // número, "SUBTOTAL DESCUENTO" y "SUBTOTAL CON DESCUENTO".
         const pasos = [];
         if (Number(tot.descuentoDistribuidor) > 0) {
           pasos.push(["DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, tot.subtotalDistribuidor]);
-        }
-        if (Number(tot.descuentoCliente) > 0) {
-          pasos.push(["DESCUENTO CLIENTE " + txt(d.descuentoClientePct) + "%", tot.descuentoCliente, tot.subtotalCliente]);
         }
         if (Number(tot.descuentoExtra) > 0) {
           pasos.push(["DESCUENTO EXTRA " + txt(d.descuentoPct) + "%", tot.descuentoExtra, tot.subtotalDesc]);
