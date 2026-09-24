@@ -156,9 +156,9 @@ public class MotorPreciosTests
         Assert.Equal(100m, t.Subtotal);
         Assert.Equal(20m, t.DescuentoDistribuidor);
         Assert.Equal(80m, t.SubtotalDistribuidor);   // tras el del distribuidor
-        Assert.Equal(10m, t.DescuentoCliente);       // 10% del PUBLICO, no de 80
-        Assert.Equal(90m, t.SubtotalCliente);        // lo que paga el CLIENTE
-        Assert.Equal(4m, t.DescuentoExtra);          // 5% de 80
+        Assert.Equal(14.50m, t.DescuentoCliente);    // las dos partes: 100 - 100x0.90x0.95
+        Assert.Equal(85.50m, t.SubtotalCliente);     // lo que paga el CLIENTE
+        Assert.Equal(4m, t.DescuentoExtra);          // el 5% de Modumex, sobre 80
         Assert.Equal(76m, t.SubtotalDesc);           // lo que paga el DISTRIBUIDOR
     }
 
@@ -175,9 +175,28 @@ public class MotorPreciosTests
         Assert.Equal(90m, con.SubtotalCliente);             // y el cliente paga menos
     }
 
-    // ---- Sin descuento al cliente, la cadena sigue siendo dist + extra ----
+    // ---- La parte que pone Modumex SI le baja el costo al distribuidor ----
     [Fact]
-    public void SinDescuentoAlCliente_QuedanLosDosDeSiempre()
+    public void LaParteDeModumex_LeBajaElCostoAlDistribuidorYElPrecioAlCliente()
+    {
+        // 11% al cliente = 6% que pone el distribuidor + 5% que pone Modumex
+        var c = new Cotizacion
+        {
+            IvaPct = 0m, DescuentoClientePct = 6m, DescuentoPct = 5m,
+            Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
+        };
+        var t = MotorPrecios.Calcular(c);
+
+        Assert.Equal(76m, t.SubtotalDesc);        // 100 x 0.80 x 0.95: su 20% + el 5% nuestro
+        Assert.Equal(89.30m, t.SubtotalCliente);  // 100 x 0.94 x 0.95: las dos partes en cascada
+        Assert.Equal(10.70m, t.DescuentoCliente); // el cliente ve "11%" aunque en plata sea 10.70
+        Assert.Equal(13.30m, t.SubtotalCliente - t.SubtotalDesc);   // margen del distribuidor
+    }
+
+    // ---- Si Modumex pone su parte y el distribuidor no pone nada, el cliente
+    //      igual recibe la de Modumex: es parte de SU descuento ----
+    [Fact]
+    public void SoloLaParteDeModumex_LlegaIgualAlCliente()
     {
         var c = new Cotizacion
         {
@@ -185,8 +204,9 @@ public class MotorPreciosTests
             Lineas = new() { new LineaCotizacion { Cantidad = 1, PrecioUnitario = 100m, DescuentoPct = 20m } },
         };
         var t = MotorPrecios.Calcular(c);
-        Assert.Equal(0m, t.DescuentoCliente);
-        Assert.Equal(76m, t.SubtotalDesc);   // 100 x 0.80 x 0.95
+        Assert.Equal(5m, t.DescuentoCliente);
+        Assert.Equal(95m, t.SubtotalCliente);   // el cliente paga 95
+        Assert.Equal(76m, t.SubtotalDesc);      // 100 x 0.80 x 0.95
     }
 
     // ---- Servicios y flete no reciben ninguno de los tres ----
@@ -209,18 +229,21 @@ public class MotorPreciosTests
     // al cliente. El cliente paga el PUBLICO y solo ve el descuento que su
     // distribuidor decida darle; el distribuidor paga el publico menos el suyo.
     // ===================================================================
-    private static Cotizacion Cot1098(bool paraCliente, decimal descAlCliente = 0m)
+    // Arma la 1098 igual que la pantalla: "suyo" es la parte del descuento al
+    // cliente que pone el distribuidor y "nuestro" la que pone Modumex.
+    private static Cotizacion Cot1098(bool paraCliente, decimal suyo = 0m, decimal nuestro = 0m)
     {
         // 8 lockers L-100-T + 8 instalaciones (la instalacion no lleva descuento)
-        // y ,760 de envio, que se suman antes del IVA.
+        // y 8,760 de envio, que se suman antes del IVA.
         return new Cotizacion
         {
             IvaPct = 16m, AnticipoPct = 60m, GastosEnvio = 8760m,
-            // el PDF del cliente manda su descuento en el tramo que le aplica
-            DescuentoPct = paraCliente ? descAlCliente : 0m,
+            DescuentoPct = nuestro,
+            DescuentoClientePct = paraCliente ? 0m : suyo,
             Lineas = new()
             {
-                Linea(8, 11776.78875m, descLinea: paraCliente ? 0m : 20m),
+                // al cliente no le llega el preestablecido del distribuidor
+                Linea(8, 11776.78875m, descLinea: paraCliente ? suyo : 20m),
                 Linea(8, 450m, aplicaDesc: false),
             },
         };
@@ -253,11 +276,26 @@ public class MotorPreciosTests
     [Fact]
     public void Cot1098_ElClienteSoloVeElDescuentoQueSuDistribuidorLeDa()
     {
-        var t = MotorPrecios.Calcular(Cot1098(paraCliente: true, descAlCliente: 10m));
+        var t = MotorPrecios.Calcular(Cot1098(paraCliente: true, suyo: 10m));
 
         Assert.Equal(97814.31m, t.Subtotal);
         Assert.Equal(9421.43m,  t.DescuentoMonto);   // 10% del publico
         Assert.Equal(88392.88m, t.SubtotalDesc);
+    }
+
+    [Fact]
+    public void Cot1098_ConDescuentoRepartido_ElSeisSuyoYElCincoNuestro()
+    {
+        var dist = MotorPrecios.Calcular(Cot1098(paraCliente: false, suyo: 6m, nuestro: 5m));
+        var cli  = MotorPrecios.Calcular(Cot1098(paraCliente: true,  suyo: 6m, nuestro: 5m));
+
+        // el distribuidor: su 20% y encima el 5% que pone Modumex
+        Assert.Equal(75202.88m, dist.SubtotalDesc);
+        // el cliente: las dos partes de SU descuento, en cascada
+        Assert.Equal(87733.38m, cli.SubtotalDesc);
+        // y el PDF del distribuidor le desglosa cuanto paga su cliente
+        Assert.Equal(87733.38m, dist.SubtotalCliente);
+        Assert.Equal(10080.93m, dist.DescuentoCliente);
     }
 
     [Fact]

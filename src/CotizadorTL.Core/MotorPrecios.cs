@@ -16,12 +16,14 @@ namespace CotizadorTL.Core;
 ///
 /// Cada uno se aplica sobre lo que dejó el anterior, nunca sobre el público:
 ///
-///   distribuidor paga:  público × (1−dist) × (1−extra)
-///   cliente paga:       público × (1−cliente)
+///   distribuidor paga:  público × (1−dist) × (1−modumex)
+///   cliente paga:       público × (1−cliente) × (1−modumex)
 ///
-/// El descuento del distribuidor es SU margen: no le llega al cliente, que
-/// paga el público. Y lo que el distribuidor le regale a su cliente sale de
-/// ese margen, no de lo que él le paga a Modumex.
+/// El descuento del distribuidor (dist) es SU margen y no le llega al cliente.
+/// El descuento al cliente se REPARTE: una parte la pone el distribuidor de su
+/// margen (cliente) y otra la pone Modumex (modumex), que por eso también le
+/// baja el costo al distribuidor. El cliente ve UN solo descuento —la suma de
+/// las dos partes—; el distribuidor los ve todos desglosados.
 ///
 ///   · Líneas con AplicaDescuento=false (Servicios/Flete) NO reciben ningún descuento.
 ///   · A las demás se les aplica el descuento de renglón y luego el global, de forma
@@ -67,14 +69,15 @@ public static class MotorPrecios
 
 
     /// <summary>
-    /// Lo que paga el CLIENTE: el precio público menos, si acaso, el descuento
-    /// que su distribuidor decida darle. El del distribuidor no entra acá.
+    /// Lo que paga el CLIENTE: el precio público menos las dos partes de su
+    /// descuento, en cascada —la que pone su distribuidor y la que pone
+    /// Modumex—. El preestablecido del distribuidor no entra acá.
     /// </summary>
-    public static decimal NetoCliente(LineaCotizacion l, decimal descuentoClientePct)
+    public static decimal NetoCliente(LineaCotizacion l, decimal descuentoClientePct, decimal descuentoModumexPct)
     {
         decimal bruto = SubtotalLinea(l);
         if (!l.AplicaDescuento) return bruto;
-        return bruto * (1 - descuentoClientePct / 100m);
+        return bruto * (1 - descuentoClientePct / 100m) * (1 - descuentoModumexPct / 100m);
     }
 
     /// <summary>Calcula todos los totales de la cotización (en precisión completa, redondeando para mostrar).</summary>
@@ -89,7 +92,7 @@ public static class MotorPrecios
             subtotal     += SubtotalLinea(l);
             subtotalDist += NetoLinea(l, 0m);
             subtotalDesc += NetoLinea(l, c.DescuentoPct);
-            subtotalCli  += NetoCliente(l, c.DescuentoClientePct);
+            subtotalCli  += NetoCliente(l, c.DescuentoClientePct, c.DescuentoPct);
         }
         decimal descuentoMonto = subtotal - subtotalDesc;
         // Gastos indirectos y de envío se suman ANTES del IVA (no reciben descuento).

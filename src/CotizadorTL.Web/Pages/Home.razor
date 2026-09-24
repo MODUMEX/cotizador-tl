@@ -332,7 +332,7 @@ else
                 <tr class="gran"><td>GRAN TOTAL</td><td class="num">@Money(t.GranTotal)</td></tr>
                 <tr><td>Anticipo (@cot.AnticipoPct.ToString("0.#")%)</td><td class="num">@Money(t.Anticipo)</td></tr>
                 <tr><td>Saldo</td><td class="num">@Money(t.Saldo)</td></tr>
-                <tr><td class="muted">Precio al cliente@(cot.DescuentoClientePct > 0 ? $" (con su {cot.DescuentoClientePct.ToString("0.#")}%)" : "")</td><td class="num muted">@Money(t.SubtotalCliente)</td></tr>
+                <tr><td class="muted">Precio al cliente@(t.DescuentoCliente > 0 ? $" (con {(cot.DescuentoClientePct + cot.DescuentoPct).ToString("0.#")}%)" : "")</td><td class="num muted">@Money(t.SubtotalCliente)</td></tr>
             </table>
             @if (mensaje is not null) { <div class="aviso @(mensajeOk ? "ok" : "err")">@mensaje</div> }
             <button class="btn-guardar" @onclick="Guardar" disabled="@guardando">@(guardando ? "Guardando…" : "Descargar PDF Distribuidor (guardar)")</button>
@@ -888,16 +888,18 @@ else
             var paraCliente = new Cotizacion
             {
                 IvaPct = cot.IvaClientePct, AnticipoPct = cot.AnticipoPct,
-                // Su descuento va en el único tramo de la cadena que le aplica: el
-                // del distribuidor no le llega y el extra tampoco.
-                DescuentoPct = cot.DescuentoClientePct,
+                // Su descuento son DOS partes en cascada: la del distribuidor va en
+                // el renglón y la de Modumex en el tramo global. El preestablecido
+                // del distribuidor no le llega.
+                DescuentoPct = cot.DescuentoPct,
                 DescuentoClientePct = 0m,
                 GastosIndirectos = cot.GastosIndirectos, GastosEnvio = cot.GastosEnvio,
                 Lineas = cot.Lineas.Select(l => new LineaCotizacion
                 {
                     Cantidad = l.Cantidad,
-                    // PÚBLICO: el descuento del distribuidor es suyo y no le llega al cliente
+                    // PÚBLICO: el preestablecido del distribuidor es suyo y no le llega
                     PrecioUnitario = l.PrecioUnitario,
+                    DescuentoPct = cot.DescuentoClientePct,
                     AplicaDescuento = l.AplicaDescuento,
                 }).ToList(),
             };
@@ -916,7 +918,10 @@ else
             razonSocial = cot.RazonSocial, proyecto = cot.Proyecto, titulo = cot.Titulo, cliente = cot.Cliente,
             atencionA = cot.AtencionA, telefono = cot.Telefono, ciudad = cot.Ciudad, cotizadoPor = cot.CotizadoPor,
             comentarios = cot.Comentarios, descuentoPct = cot.DescuentoPct.ToString("0.#"),
-            descuentoClientePct = cot.DescuentoClientePct.ToString("0.#"),
+            // El cliente ve un solo descuento: la suma de lo que pone su distribuidor
+            // y lo que pone Modumex. El distribuidor los ve por separado.
+            descuentoClientePct = (conDescuento ? cot.DescuentoClientePct
+                                                : cot.DescuentoClientePct + cot.DescuentoPct).ToString("0.#"),
             ivaPct = (conDescuento ? cot.IvaPct : cot.IvaClientePct).ToString("0.#"), anticipoPct = (double)cot.AnticipoPct,
             datosBancarios = cot.DatosBancarios, condicionesCliente = cot.CondicionesCliente, fabricacion = fabricacion,
             moneda = MonedaActual, mostrarDescuento = conDescuento, tipoPdf = conDescuento ? "DISTRIBUIDOR" : "CLIENTE",

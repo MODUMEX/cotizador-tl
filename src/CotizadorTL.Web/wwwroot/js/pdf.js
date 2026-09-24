@@ -178,9 +178,13 @@
       // Si no cabe en lo que resta de la página, saltamos a una nueva para no cortarlo.
       const _t = d.totales || {};
       let filasTot = 3; // subtotal + iva + gran total
-      // el distribuidor ve la cascada completa: hasta 3 descuentos + 2 subtotales
-      if (d.mostrarDescuento) filasTot += 6;
-      else if (Number(_t.descuentoMonto) > 0) filasTot += 2;
+      if (d.mostrarDescuento) {
+        filasTot += 4;   // su cascada: hasta 2 descuentos + 2 subtotales
+        // y el bloque del precio al cliente, que son 2 filas más
+        if (Number(_t.descuentoCliente) > 0) filasTot += 2;
+      } else if (Number(_t.descuentoMonto) > 0) {
+        filasTot += 2;   // el cliente ve un solo descuento + su subtotal
+      }
       if (Number(_t.gastosIndirectos) > 0) filasTot += 1;
       if (Number(_t.gastosEnvio) > 0) filasTot += 1;
       const altoBloque = Math.max(filasTot * 15 + 20, 90) + 20;
@@ -208,8 +212,9 @@
         // PDF del DISTRIBUIDOR: los descuentos que haya, en cascada, cada uno
         // sobre lo que dejó el anterior y con el subtotal que resulta.
         //
-        // Lo que el distribuidor le dé a su cliente NO va acá: sale de su margen,
-        // no de lo que él paga. Esta cadena es solo la suya.
+        // Esta cadena es lo que paga ÉL: su descuento preestablecido y la parte
+        // que pone Modumex del descuento al cliente. Lo que él le dé a su cliente
+        // sale de su margen, así que va aparte, más abajo.
         //
         // El último subtotal es el final, así que se rotula distinto y NO se
         // repite: con un solo descuento, antes salían dos filas con el mismo
@@ -219,7 +224,7 @@
           pasos.push(["DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, tot.subtotalDistribuidor]);
         }
         if (Number(tot.descuentoExtra) > 0) {
-          pasos.push(["DESCUENTO EXTRA " + txt(d.descuentoPct) + "%", tot.descuentoExtra, tot.subtotalDesc]);
+          pasos.push(["DESCUENTO MODUMEX " + txt(d.descuentoPct) + "%", tot.descuentoExtra, tot.subtotalDesc]);
         }
         rowT("SUBTOTAL PÚBLICO", tot.subtotal);
         pasos.forEach(function (paso, i) {
@@ -240,6 +245,19 @@
       rowT("IVA " + txt(d.ivaPct) + "%", tot.ivaMonto, { color: ROJO });
       doc.setDrawColor(...OSCURO); doc.line(x0, fy - 10, W - M, fy - 10);
       rowT("GRAN TOTAL", tot.granTotal, { bold: true });
+
+      // Lo que le queda al distribuidor: el precio de su cliente, con las dos
+      // partes del descuento desglosadas. Solo en el PDF del distribuidor.
+      if (d.mostrarDescuento && Number(tot.descuentoCliente) > 0) {
+        fy += 6;
+        doc.setDrawColor(210, 210, 210); doc.line(x0, fy - 12, W - M, fy - 12);
+        const suyo = Number(d.descuentoClientePct) || 0, nuestro = Number(d.descuentoPct) || 0;
+        const rotulo = nuestro > 0
+          ? "DESCUENTO AL CLIENTE " + txt(suyo + nuestro) + "% (" + txt(suyo) + "% + " + txt(nuestro) + "%)"
+          : "DESCUENTO AL CLIENTE " + txt(suyo) + "%";
+        rowT(rotulo, tot.descuentoCliente, { color: ROJO });
+        rowT("PRECIO AL CLIENTE", tot.subtotalCliente);
+      }
 
       // ---------- Condiciones de pago (izquierda) ----------
       // El anticipo y el saldo son el trato entre Modumex y el distribuidor:
