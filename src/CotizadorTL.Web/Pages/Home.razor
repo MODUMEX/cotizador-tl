@@ -905,8 +905,6 @@ else
             };
             t = MotorPrecios.Calcular(paraCliente);
         }
-        bool hayInstalacion = lineas.Any(l => ProdDe(l)?.CodigoSap.StartsWith("INST-") == true);
-        bool hayFlete = lineas.Any(l => ProdDe(l)?.CodigoSap.StartsWith("FLETE") == true);
         // Peso estimado del pedido, para poder cotizar el envío. Va en los dos PDF.
         var peso = Pesos.Total(lineas
             .Where(l => ProdDe(l) is not null)
@@ -925,7 +923,6 @@ else
             ivaPct = (conDescuento ? cot.IvaPct : cot.IvaClientePct).ToString("0.#"), anticipoPct = (double)cot.AnticipoPct,
             datosBancarios = cot.DatosBancarios, condicionesCliente = cot.CondicionesCliente, fabricacion = fabricacion,
             moneda = MonedaActual, mostrarDescuento = conDescuento, tipoPdf = conDescuento ? "DISTRIBUIDOR" : "CLIENTE",
-            incluyeInstalacion = hayInstalacion, incluyeFlete = hayFlete,
             peso = new
             {
                 kg = (double)peso.Kg, tarimas = peso.Tarimas, sinPeso = peso.RenglonesSinPeso,

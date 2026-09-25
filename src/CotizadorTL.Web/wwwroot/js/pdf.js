@@ -16,16 +16,12 @@
                   "NAVE INDUSTRIAL MULTITENANT FINCA TRES.",
                   "Tel. +506 6391 4639"];
   const dirDe = (d) => (d && d.fabricacion === "Costa Rica") ? DIR_CR : DIR_MX;
-  // El texto "no incluye..." se arma según lo que SÍ se esté cobrando (instalación/flete).
+  // El banner verde del pie. Ya no lleva la línea de "no incluye costos de
+  // flete o viáticos": el flete se cotiza como un renglón más cuando va, así
+  // que decirlo abajo sobraba y contradecía lo que mostraba la tabla.
   function bannerLineas(d) {
-    const excl = [];
-    if (!d.incluyeFlete) excl.push("FLETE");
-    if (!d.incluyeInstalacion) excl.push("INSTALACIÓN");
-    excl.push("VIÁTICOS");
-    let lista = excl.length === 1 ? excl[0] : excl.slice(0, -1).join(", ") + " O " + excl[excl.length - 1];
     const entrega = (d.entrega && String(d.entrega).trim()) ? String(d.entrega).trim().toUpperCase() : "CONFIRMAR";
-    const lineas = ["TIEMPO DE ENTREGA: " + entrega + ", SALVO CONFIRMACIÓN DE MATERIAL",
-                    "ESTA COTIZACIÓN NO INCLUYE COSTOS DE " + lista + "."];
+    const lineas = ["TIEMPO DE ENTREGA: " + entrega + ", SALVO CONFIRMACIÓN DE MATERIAL"];
     // Al cliente no se le dice que hay un descuento de distribuidor: ese trato
     // es entre Modumex y el distribuidor, y su PDF ya sale con el precio final.
     if (d.tipoPdf !== "CLIENTE") lineas.push("DESCUENTO DISTRIBUIDOR APLICADO");
