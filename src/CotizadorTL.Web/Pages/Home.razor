@@ -160,6 +160,9 @@ else
                                     <label>Color
                                         <select @bind="l.ColorNombre" @bind:after="() => OnColorChanged(l)">
                                             <option value="">—</option>
+                                            @* Para cuando todavía no se definió el color: así la columna
+                                               COLOR del PDF no sale en blanco. No cambia el precio. *@
+                                            <option value="@COLOR_DE_LINEA">@COLOR_DE_LINEA</option>
                                             @foreach (var c in ColoresDe(l))
                                             { <option value="@c.Nombre">@c.Nombre (@c.Grupo)@(c.TiempoEspecial ? " ·tiempo esp." : "")</option> }
                                         </select>
@@ -471,8 +474,15 @@ else
         return Catalogo.Colores.Where(c => c.Ambito == amb && c.Region == ColorRegion);
     }
 
-    // El locker SMART no elige interior: siempre es Alúmina.
+    // El color de fábrica del locker SMART, el que va si no se elige ninguno.
     private const string INTERIOR_SMART = "Alúmina";
+
+    /// <summary>
+    /// Color a elegir cuando todavía no está definido, para que la columna
+    /// COLOR del PDF no salga en blanco. No sale del catálogo y no cambia el
+    /// precio: cotiza igual que dejar el color sin elegir.
+    /// </summary>
+    private const string COLOR_DE_LINEA = "De línea";
 
     private string TierDe(Producto p) => (p.CodigoSap.StartsWith("L-") || p.CodigoSap.Contains("SMART")) ? "SMART" : "PRO";
 
@@ -634,7 +644,9 @@ else
             // se regenera la descripción para que quede sincronizada con el color (columna del PDF).
             foreach (var l in lineas)
             {
-                if (!string.IsNullOrEmpty(l.ColorNombre) && !ColoresDe(l).Any(c => c.Nombre == l.ColorNombre)) l.ColorNombre = "";
+                // "De línea" no sale del catálogo, así que vale en cualquier región
+                if (!string.IsNullOrEmpty(l.ColorNombre) && l.ColorNombre != COLOR_DE_LINEA
+                    && !ColoresDe(l).Any(c => c.Nombre == l.ColorNombre)) l.ColorNombre = "";
                 if (!string.IsNullOrEmpty(l.ColorInterior) && !ColoresInterior().Any(c => c.Nombre == l.ColorInterior)) l.ColorInterior = "";
                 var p = ProdDe(l);
                 if (p is not null && p.AplicaDescuento) l.DescuentoPct = Catalogo.DescuentoFamilia(distribuidorId, l.FamiliaCodigo);
