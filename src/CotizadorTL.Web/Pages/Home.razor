@@ -203,25 +203,18 @@ else
                                 }
                             }
 
-                            @* Color interior: el PRO lo elige, el SMART lo tiene fijo en Alúmina *@
+                            @* Color interior: lo eligen los dos tiers. Cambia el de fábrica:
+                               el SMART arranca en Alúmina en las dos regiones, y el PRO en
+                               Alúmina en México y Gris en Costa Rica. *@
                             @if (EsFamilia(l, "LOCKERS") && !prod.EsExtra)
                             {
-                                @if (TierDe(prod) == "PRO")
-                                {
-                                    <label>Color interior
-                                        <select @bind="l.ColorInterior" @bind:after="StateHasChanged">
-                                            <option value="">@(ColorRegion == "MXN" ? "Alúmina" : "Gris") (estándar)</option>
-                                            @foreach (var c in ColoresInterior())
-                                            { <option value="@c.Nombre">@c.Nombre</option> }
-                                        </select>
-                                    </label>
-                                }
-                                else
-                                {
-                                    <label>Color interior
-                                        <div class="reparto">@INTERIOR_SMART (único)</div>
-                                    </label>
-                                }
+                                <label>Color interior
+                                    <select @bind="l.ColorInterior" @bind:after="StateHasChanged">
+                                        <option value="">@InteriorDeFabrica(prod) (estándar)</option>
+                                        @foreach (var c in ColoresInterior())
+                                        { <option value="@c.Nombre">@c.Nombre</option> }
+                                    </select>
+                                </label>
                             }
                         </div>
 
@@ -644,8 +637,6 @@ else
                 if (!string.IsNullOrEmpty(l.ColorNombre) && !ColoresDe(l).Any(c => c.Nombre == l.ColorNombre)) l.ColorNombre = "";
                 if (!string.IsNullOrEmpty(l.ColorInterior) && !ColoresInterior().Any(c => c.Nombre == l.ColorInterior)) l.ColorInterior = "";
                 var p = ProdDe(l);
-                // el SMART no elige interior: si venía uno de un PRO, se descarta
-                if (p is not null && EsFamilia(l, "LOCKERS") && TierDe(p) != "PRO") l.ColorInterior = "";
                 if (p is not null && p.AplicaDescuento) l.DescuentoPct = Catalogo.DescuentoFamilia(distribuidorId, l.FamiliaCodigo);
                 RegenerarDescripcion(l);
             }
@@ -671,23 +662,24 @@ else
                                     && c.Nombre != "Alúmina" && c.Nombre != "Alumina" && c.Nombre != "Gris");
 
     /// <summary>
+    /// El color interior que trae de fábrica el locker, o sea el que va si no
+    /// se elige ninguno: el SMART es Alúmina en las dos regiones, y el PRO
+    /// Alúmina en México y Gris en Costa Rica.
+    /// </summary>
+    private string InteriorDeFabrica(Producto p) =>
+        TierDe(p) != "PRO" ? INTERIOR_SMART : (ColorRegion == "MXN" ? "Alúmina" : "Gris");
+
+    /// <summary>
     /// El color interior que va en la descripción y por lo tanto en el PDF.
     ///
     /// Antes solo salía cuando se elegía uno distinto del de fábrica: si se
     /// dejaba el estándar, el campo quedaba vacío y la descripción no decía
     /// nada del interior, que es justo el caso más común.
-    ///
-    /// El SMART lo tiene fijo en Alúmina, en las dos regiones. El PRO lleva el
-    /// que se haya elegido y, si se dejó el de fábrica, el de su región:
-    /// Alúmina en México y Gris en Costa Rica.
     /// </summary>
     private string InteriorEfectivo(LineaUI l, Producto? p)
     {
         if (p is null || p.EsExtra || !EsFamilia(l, "LOCKERS")) return "";
-        if (TierDe(p) != "PRO") return INTERIOR_SMART;
-        return string.IsNullOrEmpty(l.ColorInterior)
-            ? (ColorRegion == "MXN" ? "Alúmina" : "Gris")
-            : l.ColorInterior;
+        return string.IsNullOrEmpty(l.ColorInterior) ? InteriorDeFabrica(p) : l.ColorInterior;
     }
 
     // Color que va al PDF/descripción (especial escrito a mano, o el del catálogo)
