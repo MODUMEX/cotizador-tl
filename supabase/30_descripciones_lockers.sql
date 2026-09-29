@@ -3,32 +3,41 @@
 --
 --   1) "DIMESIÓN" → "DIMENSIÓN" (falta la N)
 --   2) la descripción de un locker que cita el código de OTRO: el
---      L-300-T (Triple) dice "CÓDIGO: L-300-D", que es el Doble
+--      L-300-T (Triple) dice "CÓDIGO L-300-D", que es el Doble
 --
 -- Las descripciones son la plantilla que va al PDF, así que el error se
 -- imprime tal cual en la cotización del cliente.
 --
--- Correr los pasos EN ORDEN. El 1 y el 4 solo miran; el 2 y el 3 corrigen.
+-- OJO: va en el proyecto de Supabase del COTIZADOR TL. Para asegurarte:
+--   select to_regclass('public.producto') as tabla;   -- debe decir "producto"
+--
+-- Correr en orden. Los pasos 1, 4 y 5 solo miran; el 2 y el 3 corrigen.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
 -- 1) QUÉ SE VA A TOCAR (no cambia nada)
+--
+-- Solo salen los que tienen algo mal: los productos cuya descripción no
+-- cita ningún código —cerraduras, fillers, ganchos— no son un problema y
+-- quedan fuera.
 -- ---------------------------------------------------------------------
 select
   codigo_sap,
   nombre,
   case when descripcion ilike '%DIMESI%' then 'falta la N en DIMENSIÓN' end as falta_n,
-  -- el código que la descripción dice llevar
-  (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1]             as codigo_que_dice,
+  (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1]              as codigo_que_dice,
   case
     when (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] is null then null
     when (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] <> codigo_sap
       then '⚠ cita el código de otro producto'
-  end                                                                       as codigo_cruzado
+  end                                                                        as codigo_cruzado
 from public.producto
 where familia_codigo = 'LOCKERS'
-  and (descripcion ilike '%DIMESI%'
-       or (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] is distinct from codigo_sap)
+  and (
+    descripcion ilike '%DIMESI%'
+    or ((regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] is not null
+        and (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] <> codigo_sap)
+  )
 order by codigo_sap;
 
 -- ---------------------------------------------------------------------
@@ -41,8 +50,8 @@ update public.producto
 -- ---------------------------------------------------------------------
 -- 3) Que cada descripción cite SU propio código
 --
---    Solo toca las que hoy dicen uno distinto: la que ya está bien no se
---    reescribe. Deja el resto del texto intacto.
+--    Solo toca las que hoy dicen uno distinto. Las que ya están bien, y
+--    las que no citan ninguno, no se reescriben.
 -- ---------------------------------------------------------------------
 update public.producto
    set descripcion = regexp_replace(
@@ -52,23 +61,28 @@ update public.producto
    and (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] <> codigo_sap;
 
 -- ---------------------------------------------------------------------
--- 4) VERIFICAR: no debería devolver ninguna fila
+-- 4) VERIFICAR: no debería devolver NINGUNA fila
 -- ---------------------------------------------------------------------
 select codigo_sap, nombre,
        (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] as codigo_que_dice
   from public.producto
  where familia_codigo = 'LOCKERS'
-   and (descripcion ilike '%DIMESI%'
-        or (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] is distinct from codigo_sap)
+   and (
+     descripcion ilike '%DIMESI%'
+     or ((regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] is not null
+         and (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] <> codigo_sap)
+   )
  order by codigo_sap;
 
 -- ---------------------------------------------------------------------
--- 5) De paso, la misma revisión en TODAS las familias, por si el error
---    se repite fuera de lockers (solo mira)
+-- 5) Cómo quedaron TODOS los lockers: su código y el que dice el texto.
+--    Las dos columnas tienen que coincidir, o la segunda venir vacía.
 -- ---------------------------------------------------------------------
--- select familia_codigo, codigo_sap, nombre,
---        (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] as codigo_que_dice
---   from public.producto
---  where (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] is distinct from codigo_sap
---     or descripcion ilike '%DIMESI%'
---  order by familia_codigo, codigo_sap;
+select codigo_sap,
+       nombre,
+       (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] as codigo_que_dice,
+       descripcion ilike '%DIMENSIÓN%'                              as dice_dimension_bien
+  from public.producto
+ where familia_codigo = 'LOCKERS'
+   and es_extra = false
+ order by codigo_sap;
