@@ -670,6 +670,26 @@ else
         Catalogo.Colores.Where(c => c.Ambito == "locker_interior" && c.Region == ColorRegion
                                     && c.Nombre != "Alúmina" && c.Nombre != "Alumina" && c.Nombre != "Gris");
 
+    /// <summary>
+    /// El color interior que va en la descripción y por lo tanto en el PDF.
+    ///
+    /// Antes solo salía cuando se elegía uno distinto del de fábrica: si se
+    /// dejaba el estándar, el campo quedaba vacío y la descripción no decía
+    /// nada del interior, que es justo el caso más común.
+    ///
+    /// El SMART lo tiene fijo en Alúmina, en las dos regiones. El PRO lleva el
+    /// que se haya elegido y, si se dejó el de fábrica, el de su región:
+    /// Alúmina en México y Gris en Costa Rica.
+    /// </summary>
+    private string InteriorEfectivo(LineaUI l, Producto? p)
+    {
+        if (p is null || p.EsExtra || !EsFamilia(l, "LOCKERS")) return "";
+        if (TierDe(p) != "PRO") return INTERIOR_SMART;
+        return string.IsNullOrEmpty(l.ColorInterior)
+            ? (ColorRegion == "MXN" ? "Alúmina" : "Gris")
+            : l.ColorInterior;
+    }
+
     // Color que va al PDF/descripción (especial escrito a mano, o el del catálogo)
     private string? ColorFinal(LineaUI l) =>
         EsFamilia(l, "CUBIERTAS") && l.ColorEspecial
@@ -697,7 +717,8 @@ else
         if (!string.IsNullOrEmpty(l.Canto)) sb.Replace("CANTO __", "CANTO " + l.Canto);
         var colorTxt = ColorFinal(l);
         if (!string.IsNullOrEmpty(colorTxt)) sb.Append($" COLOR: {colorTxt}.");
-        if (!string.IsNullOrEmpty(l.ColorInterior)) sb.Append($" INTERIOR: {l.ColorInterior}.");
+        var interiorTxt = InteriorEfectivo(l, p);
+        if (!string.IsNullOrEmpty(interiorTxt)) sb.Append($" INTERIOR: {interiorTxt}.");
         if (l.DosColores && !string.IsNullOrWhiteSpace(l.SegundoColorLinea))
             sb.Append($" SEGUNDO COLOR: {l.SegundoColorLinea.Trim().ToUpperInvariant()}.");
         if (l.SegundoColor && !string.IsNullOrWhiteSpace(l.SegundoColorNombre))
