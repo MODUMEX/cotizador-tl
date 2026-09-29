@@ -86,3 +86,21 @@ select codigo_sap,
  where familia_codigo = 'LOCKERS'
    and es_extra = false
  order by codigo_sap;
+
+-- ---------------------------------------------------------------------
+-- 6) Los L-100 salen con dice_dimension_bien = false. Esto muestra qué
+--    dicen de verdad: puede ser la tilde, o que no mencionen la medida.
+-- ---------------------------------------------------------------------
+select codigo_sap,
+       substring(descripcion from 'DIME[A-ZÁÉÍÓÚ]*[^.]*') as lo_que_dice_de_la_medida
+  from public.producto
+ where familia_codigo = 'LOCKERS' and es_extra = false
+ order by codigo_sap;
+
+-- ---------------------------------------------------------------------
+-- 7) Si el paso 6 mostró "DIMENSION" sin tilde, esto se la pone.
+--    Si mostró vacío, NO es esto: esas descripciones no traen la medida.
+-- ---------------------------------------------------------------------
+-- update public.producto
+--    set descripcion = replace(descripcion, 'DIMENSION', 'DIMENSIÓN')
+--  where descripcion like '%DIMENSION%';
