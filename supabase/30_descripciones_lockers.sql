@@ -81,26 +81,19 @@ select codigo_sap, nombre,
 select codigo_sap,
        nombre,
        (regexp_match(descripcion, 'C[ÓO]DIGO:?\s*([A-Z0-9-]+)'))[1] as codigo_que_dice,
-       descripcion ilike '%DIMENSIÓN%'                              as dice_dimension_bien
+       descripcion ilike '%DIMENSI%'                                as menciona_la_medida
   from public.producto
  where familia_codigo = 'LOCKERS'
    and es_extra = false
  order by codigo_sap;
 
 -- ---------------------------------------------------------------------
--- 6) Los L-100 salen con dice_dimension_bien = false. Esto muestra qué
---    dicen de verdad: puede ser la tilde, o que no mencionen la medida.
+-- 6) Qué dice cada uno de la medida. Revisado el 29-sep-2026: los L-100
+--    dicen "DIMENSIONES POR MUEBLE" —plural y sin tilde, correcto— y los
+--    L-200 y L-300 "DIMENSIÓN POR MUEBLE". Las dos formas están bien.
 -- ---------------------------------------------------------------------
 select codigo_sap,
        substring(descripcion from 'DIME[A-ZÁÉÍÓÚ]*[^.]*') as lo_que_dice_de_la_medida
   from public.producto
  where familia_codigo = 'LOCKERS' and es_extra = false
  order by codigo_sap;
-
--- ---------------------------------------------------------------------
--- 7) Si el paso 6 mostró "DIMENSION" sin tilde, esto se la pone.
---    Si mostró vacío, NO es esto: esas descripciones no traen la medida.
--- ---------------------------------------------------------------------
--- update public.producto
---    set descripcion = replace(descripcion, 'DIMENSION', 'DIMENSIÓN')
---  where descripcion like '%DIMENSION%';
