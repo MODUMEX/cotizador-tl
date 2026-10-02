@@ -100,7 +100,7 @@ else
                             <select @bind="l.ProductoIdStr" @bind:after="() => OnProductoChanged(l)">
                                 <option value="">—</option>
                                 @foreach (var p in ProductosPrincipales(l.FamiliaCodigo))
-                                { <option value="@p.ProductoId">@p.CodigoSap · @p.Nombre</option> }
+                                { <option value="@p.ProductoId">@p.CodigoSap · @p.Nombre@(SinPrecio(p) ? " · SIN PRECIO" : "")</option> }
                             </select>
                         </label>
                         <label class="mini">Cant.<input type="number" min="1" step="1" @bind="l.Cantidad" @bind:after="StateHasChanged" /></label>
@@ -232,9 +232,9 @@ else
                                         var sel = l.ExtrasCant.ContainsKey(ex.ProductoId);
                                         <div class="extra-item">
                                             <label class="chk">
-                                                <input type="checkbox" checked="@sel"
+                                                <input type="checkbox" checked="@sel" disabled="@SinPrecio(ex)"
                                                        @onchange="e => ToggleExtra(l, ex.ProductoId, (bool)e.Value!)" />
-                                                @ex.Nombre (@Money(PrecioExtra(ex, TierDe(prod)) * Factor))
+                                                @ex.Nombre @(SinPrecio(ex) ? "(sin precio cargado)" : "(" + Money(PrecioExtra(ex, TierDe(prod)) * Factor) + ")")
                                             </label>
                                             @if (sel)
                                             {
@@ -331,8 +331,13 @@ else
                 <tr><td class="muted">Precio al cliente@(t.DescuentoCliente > 0 ? $" (con {(cot.DescuentoClientePct + cot.DescuentoPct).ToString("0.#")}%)" : "")</td><td class="num muted">@Money(t.SubtotalCliente)</td></tr>
             </table>
             @if (mensaje is not null) { <div class="aviso @(mensajeOk ? "ok" : "err")">@mensaje</div> }
-            <button class="btn-guardar" @onclick="Guardar" disabled="@guardando">@(guardando ? "Guardando…" : "Descargar PDF Distribuidor (guardar)")</button>
-            <button class="btn-pdf" @onclick="() => DescargarPdf(false)">Descargar PDF Cliente</button>
+            @{ var faltaPrecio = SinPrecioEnLaCotizacion(); }
+            @if (faltaPrecio.Count > 0)
+            {
+                <div class="aviso err">Sin precio cargado: @string.Join(", ", faltaPrecio). Cargalo en Admin › Precios (sale con el renglón en blanco); si no, ese producto saldría en 0.</div>
+            }
+            <button class="btn-guardar" @onclick="Guardar" disabled="@(guardando || faltaPrecio.Count > 0)">@(guardando ? "Guardando…" : "Descargar PDF Distribuidor (guardar)")</button>
+            <button class="btn-pdf" @onclick="() => DescargarPdf(false)" disabled="@(faltaPrecio.Count > 0)">Descargar PDF Cliente</button>
             <p class="muted small">Tres descuentos en cascada: distribuidor, cliente y extra. El PDF Distribuidor lleva los tres; el PDF Cliente arranca del subtotal con el del distribuidor y solo muestra el del cliente.</p>
         </section>
         </div>
@@ -454,6 +459,26 @@ else
         public string? MonedaSel { get; set; }
         public Cotizacion Header { get; set; } = new();
         public List<LineaUI> Lineas { get; set; } = new();
+    }
+
+    // ---------- precio faltante ----------
+    // Un producto al que nunca le cargaron precio se cotizaba en CERO sin avisar:
+    // PrecioExtra cae en Values.FirstOrDefault() y PrecioUnit en GetValueOrDefault.
+    // Pasó con los herrajes que se dieron de alta desde la página vieja.
+    private static bool SinPrecio(Producto p) => p.Precios.Count == 0 || p.Precios.Values.All(v => v <= 0);
+
+    /// <summary>Códigos SAP de la cotización que no tienen precio cargado.</summary>
+    private List<string> SinPrecioEnLaCotizacion()
+    {
+        var faltan = new List<string>();
+        foreach (var l in lineas)
+        {
+            if (ProdDe(l) is not Producto p) continue;
+            if (SinPrecio(p)) faltan.Add(p.CodigoSap);
+            foreach (var kv in l.ExtrasCant)
+                if (Catalogo.Buscar(kv.Key) is Producto ex && SinPrecio(ex)) faltan.Add(ex.CodigoSap);
+        }
+        return faltan.Distinct().ToList();
     }
 
     // ---------- catálogo / filtros ----------

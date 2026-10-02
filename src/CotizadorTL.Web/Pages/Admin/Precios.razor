@@ -92,7 +92,7 @@ else
                             <tr>
                                 <td><b>@fila.Codigo</b></td>
                                 <td>@fila.Nombre</td>
-                                <td>@GrupoLabel(fila.Grupo)</td>
+                                <td>@GrupoLabel(fila.Grupo)@(fila.Nueva ? " · falta cargar" : "")</td>
                                 <td class="num"><input class="precio-in" type="number" step="0.0001" @bind="fila.Precio" /></td>
                                 <td><button class="btn-mini xls" @onclick="() => GuardarFila(fila)">Guardar</button></td>
                             </tr>
@@ -168,8 +168,18 @@ else
         filas.Clear();
         if (string.IsNullOrEmpty(iFamilia)) return;
         foreach (var p in Catalogo.PorFamilia(iFamilia).OrderBy(p => p.Orden))
+        {
+            // Un producto sin ningun precio no tenia renglon acá, asi que no habia
+            // forma de arreglarlo desde la app: solo salia de SQL. Ahora aparece en
+            // blanco (grupo Único) y al guardar se INSERTA.
+            if (p.Precios.Count == 0)
+            {
+                filas.Add(new FilaPrecio { ProductoId = p.ProductoId, Codigo = p.CodigoSap, Nombre = p.Nombre, Grupo = "UNICO", Precio = 0m, Nueva = true });
+                continue;
+            }
             foreach (var kv in p.Precios.OrderBy(k => k.Key))
                 filas.Add(new FilaPrecio { ProductoId = p.ProductoId, Codigo = p.CodigoSap, Nombre = p.Nombre, Grupo = kv.Key, Precio = kv.Value });
+        }
         StateHasChanged();
     }
 
@@ -178,11 +188,15 @@ else
         msgI = null;
         try
         {
-            await Supa.From<PProductoPrecio>()
-                      .Where(x => x.ProductoId == f.ProductoId)
-                      .Filter("grupo", Supabase.Postgrest.Constants.Operator.Equals, f.Grupo)
-                      .Set(x => x.Precio, f.Precio)
-                      .Update();
+            if (f.Nueva)
+                await Supa.From<PProductoPrecio>().Insert(new PProductoPrecio { ProductoId = f.ProductoId, Grupo = f.Grupo, Precio = f.Precio });
+            else
+                await Supa.From<PProductoPrecio>()
+                          .Where(x => x.ProductoId == f.ProductoId)
+                          .Filter("grupo", Supabase.Postgrest.Constants.Operator.Equals, f.Grupo)
+                          .Set(x => x.Precio, f.Precio)
+                          .Update();
+            f.Nueva = false;
             // refrescar caché
             var prod = Catalogo.Buscar(f.ProductoId);
             if (prod is not null) prod.Precios[f.Grupo] = f.Precio;
@@ -233,5 +247,7 @@ else
         public string Nombre { get; set; } = "";
         public string Grupo { get; set; } = "";
         public decimal Precio { get; set; }
+        /// <summary>El producto no tenia precio: al guardar hay que INSERTAR, no actualizar.</summary>
+        public bool Nueva { get; set; }
     }
 }
