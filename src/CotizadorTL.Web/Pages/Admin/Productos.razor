@@ -145,10 +145,20 @@ else
             };
             var resp = await Supa.From<PProducto>().Insert(prod);
             var nuevo = resp.Models.First();
-            await Supa.From<PProductoPrecio>().Insert(new PProductoPrecio
+            try
             {
-                ProductoId = nuevo.ProductoId, Grupo = string.IsNullOrWhiteSpace(nGrupo) ? "UNICO" : nGrupo.Trim(), Precio = nPrecio
-            });
+                await Supa.From<PProductoPrecio>().Insert(new PProductoPrecio
+                {
+                    ProductoId = nuevo.ProductoId, Grupo = string.IsNullOrWhiteSpace(nGrupo) ? "UNICO" : nGrupo.Trim(), Precio = nPrecio
+                });
+            }
+            catch
+            {
+                // Un producto sin precio sale en el catalogo y no se puede cotizar:
+                // si el precio no entra, el producto se deshace y no queda a medias.
+                await Supa.From<PProducto>().Where(x => x.ProductoId == nuevo.ProductoId).Delete();
+                throw;
+            }
             await Catalogo.CargarAsync(forzar: true);
             ok = true; msg = $"Producto {nuevo.CodigoSap} agregado.";
             nCodigo = nNombre = nDesc = ""; nPrecio = 0; nExtra = false; nDescuento = nFamilia != "SERVICIOS";
