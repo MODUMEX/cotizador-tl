@@ -459,10 +459,18 @@ else
     // ---------- catálogo / filtros ----------
     private Producto? ProdDe(LineaUI l) => l.ProductoId is long id ? Catalogo.Buscar(id) : null;
     private bool EsFamilia(LineaUI l, string fam) => l.FamiliaCodigo == fam;
+    // Los herrajes se cotizan de dos maneras: colgados de un locker (INCLUYE) y
+    // sueltos, en una cotizacion que es solo de herrajes. Por eso en su familia
+    // salen TODOS, tambien los que estan marcados como extra.
+    private const string FAM_HERRAJES = "HERRAJES";
     private IEnumerable<Producto> ProductosPrincipales(string? fam) =>
-        Catalogo.PorFamilia(fam ?? "").Where(p => !p.EsExtra);
+        fam == FAM_HERRAJES
+            ? Catalogo.PorFamilia(fam).OrderBy(p => p.Orden)
+            : Catalogo.PorFamilia(fam ?? "").Where(p => !p.EsExtra);
+    // Los extras del locker se buscan por la MARCA es_extra, no por la familia:
+    // asi moverlos a Herrajes no vacia la lista del INCLUYE.
     private IEnumerable<Producto> Extras() =>
-        Catalogo.PorFamilia("LOCKERS").Where(p => p.EsExtra
+        Catalogo.Productos.Where(p => p.EsExtra
             && !p.Nombre.Contains("Filler", StringComparison.OrdinalIgnoreCase)).OrderBy(p => p.Orden);
 
     private IEnumerable<PColor> ColoresDe(LineaUI l)
