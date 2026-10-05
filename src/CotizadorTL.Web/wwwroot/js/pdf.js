@@ -215,7 +215,12 @@
         // número, "SUBTOTAL DESCUENTO" y "SUBTOTAL CON DESCUENTO".
         const pasos = [];
         if (Number(tot.descuentoDistribuidor) > 0) {
-          pasos.push(["DESCUENTO DISTRIBUIDOR", tot.descuentoDistribuidor, tot.subtotalDistribuidor]);
+          // El % va al lado del monto, igual que en el extra de Modumex. El
+          // descuento es POR FAMILIA, así que puede haber más de uno: si los hay,
+          // se listan todos en vez de inventar un promedio que no es de nadie.
+          const pcts = d.descuentoDistribuidorPcts || [];
+          const conPct = pcts.length ? " " + pcts.join("% / ") + "%" : "";
+          pasos.push(["DESCUENTO DISTRIBUIDOR" + conPct, tot.descuentoDistribuidor, tot.subtotalDistribuidor]);
         }
         if (Number(tot.descuentoExtra) > 0) {
           pasos.push(["DESCUENTO EXTRA MODUMEX " + txt(d.descuentoPct) + "%", tot.descuentoExtra, tot.subtotalDesc]);

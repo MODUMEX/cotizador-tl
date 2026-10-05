@@ -993,6 +993,14 @@ else
                 descuentoDistribuidor = (double)t.DescuentoDistribuidor, subtotalDistribuidor = (double)t.SubtotalDistribuidor,
                 descuentoCliente = (double)t.DescuentoCliente, subtotalCliente = (double)t.SubtotalCliente,
                 descuentoExtra = (double)t.DescuentoExtra },
+            // Los % del descuento del distribuidor, para que su PDF los muestre y no
+            // solo el monto. Casi siempre es uno solo, pero el descuento va POR
+            // FAMILIA: una cotización con cubiertas al 20 y lockers al 23 lleva dos.
+            // Se mandan los que de verdad se aplicaron, no el general de la ficha.
+            descuentoDistribuidorPcts = lineas
+                .Where(l => l.ProductoId is not null && l.DescuentoPct > 0)
+                .Select(l => l.DescuentoPct).Distinct().OrderBy(p => p)
+                .Select(p => p.ToString("0.#")).ToArray(),
             // En los dos PDF los renglones van al precio público: el del cliente
             // porque ese es su precio, y el del distribuidor porque su descuento se
             // muestra abajo, en la cascada.
