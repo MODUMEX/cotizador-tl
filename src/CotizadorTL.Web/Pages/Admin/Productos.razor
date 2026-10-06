@@ -75,8 +75,39 @@ else
                             <td class="num">@string.Join(" · ", p.Precios.Select(kv => $"{kv.Key}: {kv.Value:#,##0.##}"))</td>
                             <td>@(p.EsExtra ? "Sí" : "")</td>
                             <td>@(p.AplicaDescuento ? "Sí" : "no")</td>
-                            <td><button class="btn-mini pdf" @onclick="() => Eliminar(p)">Eliminar</button></td>
+                            <td>
+                                <button class="btn-mini xls" @onclick="() => Editar(p)">Editar</button>
+                                <button class="btn-mini pdf" @onclick="() => Eliminar(p)">Eliminar</button>
+                            </td>
                         </tr>
+                        @if (editandoId == p.ProductoId)
+                        {
+                            <tr>
+                                <td colspan="8">
+                                    <div class="campos">
+                                        <label>Código SAP<input @bind="eCodigo" /></label>
+                                        <label>Nombre<input @bind="eNombre" /></label>
+                                        <label>Familia
+                                            <select @bind="eFamilia">
+                                                @foreach (var f in Catalogo.Familias) { <option value="@f.Codigo">@f.Nombre</option> }
+                                            </select>
+                                        </label>
+                                        <label>Tipo de precio
+                                            <select @bind="eTipo">
+                                                <option value="fijo">Fijo (por pieza)</option>
+                                                <option value="m2">Por m²</option>
+                                            </select>
+                                        </label>
+                                        <label class="chk"><input type="checkbox" @bind="eExtra" /> Es extra de locker</label>
+                                        <label class="chk"><input type="checkbox" @bind="eDescuento" /> Lleva descuento de distribuidor</label>
+                                        <label class="chk"><input type="checkbox" @bind="eActivo" /> Activo (sale en el cotizador)</label>
+                                    </div>
+                                    <label class="desc">Descripción (la que va al PDF)<textarea rows="5" @bind="eDesc"></textarea></label>
+                                    <button class="btn-add" @onclick="GuardarEdicion" disabled="@guardando">@(guardando ? "Guardando…" : "Guardar cambios")</button>
+                                    <button class="btn-mini" style="background:var(--tl-gris-txt);margin-left:.4rem" @onclick="() => editandoId = null">Cancelar</button>
+                                </td>
+                            </tr>
+                        }
                     }
                     @if (!Filtrados().Any())
                     { <tr><td colspan="7" class="muted center">Sin productos.</td></tr> }
@@ -164,6 +195,54 @@ else
             nCodigo = nNombre = nDesc = ""; nPrecio = 0; nExtra = false; nDescuento = nFamilia != "SERVICIOS";
         }
         catch (Exception ex) { ok = false; msg = "No se pudo agregar: " + ex.Message; }
+        finally { guardando = false; }
+    }
+
+    // ---------- edición ----------
+    // Hasta ahora esta pantalla solo daba de alta y borraba, así que corregir una
+    // descripción —la que se imprime en el PDF— había que hacerlo por SQL.
+    private long? editandoId;
+    private string eCodigo = "", eNombre = "", eFamilia = "", eTipo = "fijo", eDesc = "";
+    private bool eExtra, eDescuento = true, eActivo = true;
+
+    private void Editar(Producto p)
+    {
+        msg = null;
+        // tocar "Editar" en la fila abierta la cierra
+        if (editandoId == p.ProductoId) { editandoId = null; return; }
+        editandoId = p.ProductoId;
+        eCodigo = p.CodigoSap; eNombre = p.Nombre; eFamilia = p.FamiliaCodigo;
+        eTipo = p.TipoPrecio; eDesc = p.Descripcion;
+        eExtra = p.EsExtra; eDescuento = p.AplicaDescuento; eActivo = p.Activo;
+    }
+
+    private async Task GuardarEdicion()
+    {
+        if (editandoId is not long id) return;
+        if (string.IsNullOrWhiteSpace(eCodigo) || string.IsNullOrWhiteSpace(eNombre))
+        { ok = false; msg = "Código y nombre son obligatorios."; return; }
+        guardando = true; msg = null;
+        try
+        {
+            var p = Catalogo.Buscar(id);
+            if (p is null) { ok = false; msg = "Ese producto ya no está en el catálogo."; return; }
+            // Se mandan TODAS las columnas, no solo las que se ven: el Update de
+            // supabase-csharp escribe el modelo completo, así que lo que no se
+            // edita acá tiene que ir con su valor de ahora o se perdería.
+            await Supa.From<PProducto>().Update(new PProducto
+            {
+                ProductoId = id,
+                CodigoSap = eCodigo.Trim(), FamiliaCodigo = eFamilia, Nombre = eNombre.Trim(),
+                Descripcion = eDesc ?? "", TipoPrecio = eTipo,
+                Unidad = eTipo == "m2" ? "m2" : "pieza", Moneda = p.Moneda, Espesor = p.Espesor,
+                RequiereMedidas = eTipo == "m2", MedidaUnica = p.MedidaUnica,
+                AplicaDescuento = eDescuento, EsExtra = eExtra, Activo = eActivo, Orden = p.Orden,
+            });
+            await Catalogo.CargarAsync(forzar: true);
+            editandoId = null;
+            ok = true; msg = $"Producto {eCodigo.Trim()} actualizado.";
+        }
+        catch (Exception ex) { ok = false; msg = "No se pudo guardar: " + ex.Message; }
         finally { guardando = false; }
     }
 
