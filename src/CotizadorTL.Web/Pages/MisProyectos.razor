@@ -239,6 +239,15 @@ else
                 ciudad = c.Ciudad, cotizadoPor = c.CotizadoPor, comentarios = c.Comentarios,
                 descuentoPct = c.DescuentoPct.ToString("0.#"), ivaPct = c.IvaPct.ToString("0.#"),
                 anticipoPct = (double)c.AnticipoPct, datosBancarios = c.DatosBancarios,
+                // La MONEDA no se mandaba: el PDF caia en su valor por defecto y una
+                // cotizacion en colones se bajaba con el signo de dolar y "PRECIOS EN MXN".
+                moneda = c.Moneda,
+                // El % del descuento tampoco, asi que el renglon salia como
+                // "DESCUENTO %", sin numero. Se saca de lo guardado para que diga
+                // exactamente lo que se cobro.
+                descuentoClientePct = c.Subtotal > 0
+                    ? (c.DescuentoMonto / c.Subtotal * 100m).ToString("0.#")
+                    : "0",
                 totales = new
                 {
                     subtotal = (double)c.Subtotal, descuentoMonto = (double)c.DescuentoMonto,

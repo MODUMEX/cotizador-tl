@@ -264,9 +264,14 @@ else
                                 <label class="chk"><input type="checkbox" @bind="l.Perforacion" @bind:after="() => OnColorChanged(l)" /> Perforación (sin costo)</label>
                                 @if (l.Perforacion)
                                 { <label class="mini">Cant. perforación<input type="number" min="1" step="1" @bind="l.PerforacionCant" @bind:after="() => OnColorChanged(l)" /></label> }
-                                <label class="chk"><input type="checkbox" @bind="l.Grabado" @bind:after="() => OnColorChanged(l)" /> Grabado láser x cubierta ($120)</label>
-                                @if (l.Grabado)
-                                { <label class="mini">Cant. grabado<input type="number" min="1" step="1" @bind="l.GrabadoCant" @bind:after="() => OnColorChanged(l)" /></label> }
+                                @* El grabado láser solo se puede hacer en cubierta de INTERIOR: la de
+                                   exterior lleva otro material (UV) y no se graba. *@
+                                @if (!l.Exterior)
+                                {
+                                    <label class="chk"><input type="checkbox" @bind="l.Grabado" @bind:after="() => OnColorChanged(l)" /> Grabado láser x cubierta ($120)</label>
+                                    @if (l.Grabado)
+                                    { <label class="mini">Cant. grabado<input type="number" min="1" step="1" @bind="l.GrabadoCant" @bind:after="() => OnColorChanged(l)" /></label> }
+                                }
                             </div>
                         }
                         @if (EsFamilia(l, "BANCAS"))
@@ -581,7 +586,7 @@ else
         }
         if (EsFamilia(l, "CUBIERTAS") && l.ColorEspecial) precio *= 1.20m;
         // Grabado láser en cubiertas/bancas: $120 por pieza grabada (sin descuento de línea; se suma al unitario)
-        if ((EsFamilia(l, "CUBIERTAS") || EsFamilia(l, "BANCAS")) && l.Grabado) precio += 120m * Math.Max(1, l.GrabadoCant);
+        if (LlevaGrabado(l)) precio += 120m * Math.Max(1, l.GrabadoCant);
         // (El color interior de locker ya NO agrega recargo: Blanco/Negro van sin +10%.)
         // Extras de locker: la cantidad es el TOTAL de la cotización (NO se multiplica por la cantidad de lockers).
         // Se amortiza en el unitario (÷ cantidad) para que unitario × cantidad = base×cantidad + extras (una sola vez).
@@ -634,7 +639,17 @@ else
         StateHasChanged();
     }
     private void OnColorChanged(LineaUI l) { ClampG4(l); RegenerarDescripcion(l); StateHasChanged(); }
-    private void OnTipoChanged(LineaUI l) { l.ColorNombre = ""; ClampG4(l); RegenerarDescripcion(l); StateHasChanged(); }
+    // Al pasar a EXTERIOR se apaga el grabado: no se puede grabar una cubierta de
+    // exterior. Sin esto el campo desaparecía de la pantalla pero el renglón se
+    // seguía cobrando con los $120, y la descripción lo seguía diciendo.
+    private void OnTipoChanged(LineaUI l)
+    {
+        l.ColorNombre = "";
+        if (l.Exterior) { l.Grabado = false; l.GrabadoCant = 1; }
+        ClampG4(l);
+        RegenerarDescripcion(l);
+        StateHasChanged();
+    }
 
     // Al cambiar el lugar de fabricación cambia la paleta de colores: se limpian los colores elegidos.
     private void OnFabricacionChanged()
@@ -645,6 +660,16 @@ else
 
     // Admin/Vendedor cambia la moneda a mano: ajusta el IVA default (editable) y recalcula.
     private void OnMonedaChanged() { cot.IvaPct = IvaDeMoneda(monedaSel); cot.IvaClientePct = cot.IvaPct; StateHasChanged(); }
+
+    /// <summary>
+    /// Si ese renglón lleva grabado láser.
+    ///
+    /// Va en un solo lugar porque lo miran el PRECIO y la DESCRIPCIÓN: cuando la
+    /// cuenta estaba repetida, una cubierta de exterior guardada con grabado
+    /// seguía cobrándolo aunque la casilla ya no se pudiera marcar.
+    /// </summary>
+    private bool LlevaGrabado(LineaUI l) =>
+        l.Grabado && (EsFamilia(l, "BANCAS") || (EsFamilia(l, "CUBIERTAS") && !l.Exterior));
 
     // Cubiertas REDONDAS de exterior (grupo G4): el diámetro máximo es 120 cm. Se limita y se avisa.
     private const decimal MaxG4Cm = 120m;
@@ -762,7 +787,7 @@ else
             sb.Append($" SEGUNDO COLOR: {l.SegundoColorNombre.Trim().ToUpperInvariant()}"
                     + (l.SegundoColorM2 > 0 ? $" ({l.SegundoColorM2:0.##} M²)." : "."));
         if (l.Perforacion) sb.Append($" PERFORACIÓN: SÍ (x{Math.Max(1, l.PerforacionCant)}).");
-        if ((EsFamilia(l, "CUBIERTAS") || EsFamilia(l, "BANCAS")) && l.Grabado) sb.Append($" GRABADO LÁSER (x{Math.Max(1, l.GrabadoCant)}).");
+        if (LlevaGrabado(l)) sb.Append($" GRABADO LÁSER (x{Math.Max(1, l.GrabadoCant)}).");
         if (EsFamilia(l, "LOCKERS") && l.ExtrasCant.Count > 0)
         {
             var nombres = l.ExtrasCant.Select(kv => { var n = Catalogo.Buscar(kv.Key)?.Nombre; return kv.Value > 1 ? $"{n} (x{kv.Value})" : n; }).Where(n => n != null);
